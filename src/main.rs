@@ -11,6 +11,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 
+mod average;
 mod cache;
 mod cli;
 mod config;
@@ -240,17 +241,36 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
                 }
             }
         }
-        Some(Command::Daily { json, days: num_days }) => {
+        Some(Command::Daily {
+            json,
+            days: num_days,
+            average: show_avg,
+        }) => {
             let start = today - chrono::Duration::days(i64::from(*num_days) - 1);
             let (days, ..) = compute_summaries(cli, config, start, today, false)?;
 
+            let avg = if *show_avg {
+                let total: f64 = days.iter().map(|d| d.cost).sum();
+                let eff = average::effective_days(&days);
+                if eff >= 0.01 { Some((total / eff, eff)) } else { Some((0.0, eff)) }
+            } else {
+                None
+            };
+
             if *json {
-                println!("{}", output::format_daily_json(&days));
+                println!("{}", output::format_daily_json(&days, avg));
             } else {
                 println!("{}", output::format_daily_text(&days));
+                if let Some((avg_cost, _)) = avg {
+                    println!("{}", average::format_average_text("day", avg_cost));
+                }
             }
         }
-        Some(Command::Weekly { json, weeks: num_weeks }) => {
+        Some(Command::Weekly {
+            json,
+            weeks: num_weeks,
+            average: show_avg,
+        }) => {
             // Monday of the current ISO week
             let current_monday = today - chrono::Duration::days(today.weekday().num_days_from_monday() as i64);
             // Go back (num_weeks - 1) more weeks
@@ -274,15 +294,27 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
                 .map(|(week, (cost, sessions))| (week, cost, sessions.len()))
                 .collect();
 
+            let avg = if *show_avg {
+                let total: f64 = week_list.iter().map(|(_, cost, _)| cost).sum();
+                let eff = average::effective_weeks(&week_list);
+                if eff >= 0.01 { Some((total / eff, eff)) } else { Some((0.0, eff)) }
+            } else {
+                None
+            };
+
             if *json {
-                println!("{}", output::format_weekly_json(&week_list));
+                println!("{}", output::format_weekly_json(&week_list, avg));
             } else {
                 println!("{}", output::format_weekly_text(&week_list));
+                if let Some((avg_cost, _)) = avg {
+                    println!("{}", average::format_average_text("week", avg_cost));
+                }
             }
         }
         Some(Command::Monthly {
             json,
             months: num_months,
+            average: show_avg,
         }) => {
             let current_month_start = NaiveDate::from_ymd_opt(today.year(), today.month(), 1).expect("valid date");
             let start = subtract_months(current_month_start, *num_months - 1);
@@ -290,13 +322,10 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
 
             // Group by month
             let mut months: BTreeMap<String, (f64, HashSet<String>)> = BTreeMap::new();
-            // We need session info per month, but we already have day summaries
-            // Re-aggregate from day summaries
             for day in &days {
                 let month_key = format!("{}-{:02}", day.date.year(), day.date.month());
                 let entry = months.entry(month_key).or_insert_with(|| (0.0, HashSet::new()));
                 entry.0 += day.cost;
-                // We don't have per-day session IDs here, use session count as approximation
                 for i in 0..day.sessions {
                     entry.1.insert(format!("{}_{}", day.date, i));
                 }
@@ -308,10 +337,21 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
                 .map(|(month, (cost, sessions))| (month, cost, sessions.len()))
                 .collect();
 
+            let avg = if *show_avg {
+                let total: f64 = month_list.iter().map(|(_, cost, _)| cost).sum();
+                let eff = average::effective_months(&month_list);
+                if eff >= 0.01 { Some((total / eff, eff)) } else { Some((0.0, eff)) }
+            } else {
+                None
+            };
+
             if *json {
-                println!("{}", output::format_monthly_json(&month_list));
+                println!("{}", output::format_monthly_json(&month_list, avg));
             } else {
                 println!("{}", output::format_monthly_text(&month_list));
+                if let Some((avg_cost, _)) = avg {
+                    println!("{}", average::format_average_text("month", avg_cost));
+                }
             }
         }
         Some(Command::Pricing { .. }) => {

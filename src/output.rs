@@ -25,6 +25,10 @@ pub struct TodayJson {
 #[derive(Serialize)]
 pub struct DailyJson {
     pub days: Vec<DayEntryJson>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub average: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effective_periods: Option<f64>,
 }
 
 #[derive(Serialize)]
@@ -37,6 +41,10 @@ pub struct DayEntryJson {
 #[derive(Serialize)]
 pub struct WeeklyJson {
     pub weeks: Vec<WeekEntryJson>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub average: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effective_periods: Option<f64>,
 }
 
 #[derive(Serialize)]
@@ -49,6 +57,10 @@ pub struct WeekEntryJson {
 #[derive(Serialize)]
 pub struct MonthlyJson {
     pub months: Vec<MonthEntryJson>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub average: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effective_periods: Option<f64>,
 }
 
 #[derive(Serialize)]
@@ -112,7 +124,7 @@ pub fn format_daily_text(days: &[DaySummary]) -> String {
     out.trim_end().to_string()
 }
 
-pub fn format_daily_json(days: &[DaySummary]) -> String {
+pub fn format_daily_json(days: &[DaySummary], avg: Option<(f64, f64)>) -> String {
     let json = DailyJson {
         days: days
             .iter()
@@ -122,6 +134,8 @@ pub fn format_daily_json(days: &[DaySummary]) -> String {
                 sessions: d.sessions,
             })
             .collect(),
+        average: avg.map(|(a, _)| round_cents(a)),
+        effective_periods: avg.map(|(_, e)| round_cents(e)),
     };
     serde_json::to_string(&json).unwrap_or_default()
 }
@@ -140,7 +154,7 @@ pub fn format_weekly_text(weeks: &[(String, f64, usize)]) -> String {
     out.trim_end().to_string()
 }
 
-pub fn format_weekly_json(weeks: &[(String, f64, usize)]) -> String {
+pub fn format_weekly_json(weeks: &[(String, f64, usize)], avg: Option<(f64, f64)>) -> String {
     let json = WeeklyJson {
         weeks: weeks
             .iter()
@@ -150,6 +164,8 @@ pub fn format_weekly_json(weeks: &[(String, f64, usize)]) -> String {
                 sessions: *sessions,
             })
             .collect(),
+        average: avg.map(|(a, _)| round_cents(a)),
+        effective_periods: avg.map(|(_, e)| round_cents(e)),
     };
     serde_json::to_string(&json).unwrap_or_default()
 }
@@ -168,7 +184,7 @@ pub fn format_monthly_text(months: &[(String, f64, usize)]) -> String {
     out.trim_end().to_string()
 }
 
-pub fn format_monthly_json(months: &[(String, f64, usize)]) -> String {
+pub fn format_monthly_json(months: &[(String, f64, usize)], avg: Option<(f64, f64)>) -> String {
     let json = MonthlyJson {
         months: months
             .iter()
@@ -178,6 +194,8 @@ pub fn format_monthly_json(months: &[(String, f64, usize)]) -> String {
                 sessions: *sessions,
             })
             .collect(),
+        average: avg.map(|(a, _)| round_cents(a)),
+        effective_periods: avg.map(|(_, e)| round_cents(e)),
     };
     serde_json::to_string(&json).unwrap_or_default()
 }
@@ -315,7 +333,7 @@ mod tests {
             ("2026-W11".to_string(), 47.826, 12),
             ("2026-W10".to_string(), 123.454, 28),
         ];
-        let json = format_weekly_json(&weeks);
+        let json = format_weekly_json(&weeks, None);
         assert!(json.contains("\"week\":\"2026-W11\""));
         assert!(json.contains("\"cost\":47.83"));
         assert!(json.contains("\"sessions\":12"));
@@ -326,7 +344,7 @@ mod tests {
     #[test]
     fn test_format_weekly_json_empty() {
         let weeks: Vec<(String, f64, usize)> = vec![];
-        let json = format_weekly_json(&weeks);
+        let json = format_weekly_json(&weeks, None);
         assert_eq!(json, "{\"weeks\":[]}");
     }
 

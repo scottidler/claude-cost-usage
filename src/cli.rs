@@ -65,6 +65,10 @@ pub enum Command {
         /// Number of days to show
         #[arg(short, long, default_value = "7")]
         days: u32,
+
+        /// Show partial-period-weighted average
+        #[arg(short, long)]
+        average: bool,
     },
     /// Show weekly cost summary
     Weekly {
@@ -75,6 +79,10 @@ pub enum Command {
         /// Number of weeks to show
         #[arg(short, long, default_value = "4")]
         weeks: u32,
+
+        /// Show partial-period-weighted average
+        #[arg(short, long)]
+        average: bool,
     },
     /// Show monthly cost summary
     Monthly {
@@ -85,6 +93,10 @@ pub enum Command {
         /// Number of months to show
         #[arg(short, long, default_value = "12", value_parser = clap::value_parser!(u32).range(1..))]
         months: u32,
+
+        /// Show partial-period-weighted average
+        #[arg(short, long)]
+        average: bool,
     },
     /// Manage model pricing configuration
     Pricing {
