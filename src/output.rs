@@ -35,6 +35,18 @@ pub struct DayEntryJson {
 }
 
 #[derive(Serialize)]
+pub struct WeeklyJson {
+    pub weeks: Vec<WeekEntryJson>,
+}
+
+#[derive(Serialize)]
+pub struct WeekEntryJson {
+    pub week: String,
+    pub cost: f64,
+    pub sessions: usize,
+}
+
+#[derive(Serialize)]
 pub struct MonthlyJson {
     pub months: Vec<MonthEntryJson>,
 }
@@ -85,6 +97,34 @@ pub fn format_daily_json(days: &[DaySummary]) -> String {
                 date: d.date.to_string(),
                 cost: round_cents(d.cost),
                 sessions: d.sessions,
+            })
+            .collect(),
+    };
+    serde_json::to_string(&json).unwrap_or_default()
+}
+
+pub fn format_weekly_text(weeks: &[(String, f64, usize)]) -> String {
+    let mut out = String::new();
+    for (week, cost, sessions) in weeks {
+        out.push_str(&format!(
+            "{}  ${:>7.2}  ({} session{})\n",
+            week,
+            cost,
+            sessions,
+            if *sessions == 1 { "" } else { "s" }
+        ));
+    }
+    out.trim_end().to_string()
+}
+
+pub fn format_weekly_json(weeks: &[(String, f64, usize)]) -> String {
+    let json = WeeklyJson {
+        weeks: weeks
+            .iter()
+            .map(|(week, cost, sessions)| WeekEntryJson {
+                week: week.clone(),
+                cost: round_cents(*cost),
+                sessions: *sessions,
             })
             .collect(),
     };
@@ -190,6 +230,49 @@ mod tests {
         assert!(text.contains("2026-03-10"));
         assert!(text.contains("14.23"));
         assert!(text.contains("2026-03-09"));
+    }
+
+    #[test]
+    fn test_format_weekly_text() {
+        let weeks = vec![
+            ("2026-W11".to_string(), 47.82, 12),
+            ("2026-W10".to_string(), 123.45, 28),
+        ];
+        let text = format_weekly_text(&weeks);
+        assert!(text.contains("2026-W11"));
+        assert!(text.contains("47.82"));
+        assert!(text.contains("12 sessions"));
+        assert!(text.contains("2026-W10"));
+        assert!(text.contains("123.45"));
+    }
+
+    #[test]
+    fn test_format_weekly_text_singular_session() {
+        let weeks = vec![("2026-W11".to_string(), 5.00, 1)];
+        let text = format_weekly_text(&weeks);
+        assert!(text.contains("1 session)"));
+        assert!(!text.contains("1 sessions"));
+    }
+
+    #[test]
+    fn test_format_weekly_json() {
+        let weeks = vec![
+            ("2026-W11".to_string(), 47.826, 12),
+            ("2026-W10".to_string(), 123.454, 28),
+        ];
+        let json = format_weekly_json(&weeks);
+        assert!(json.contains("\"week\":\"2026-W11\""));
+        assert!(json.contains("\"cost\":47.83"));
+        assert!(json.contains("\"sessions\":12"));
+        assert!(json.contains("\"week\":\"2026-W10\""));
+        assert!(json.contains("\"cost\":123.45"));
+    }
+
+    #[test]
+    fn test_format_weekly_json_empty() {
+        let weeks: Vec<(String, f64, usize)> = vec![];
+        let json = format_weekly_json(&weeks);
+        assert_eq!(json, "{\"weeks\":[]}");
     }
 
     #[test]

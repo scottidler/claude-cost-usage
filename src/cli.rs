@@ -56,6 +56,16 @@ pub enum Command {
         #[arg(short, long, default_value = "7")]
         days: u32,
     },
+    /// Show weekly cost summary
+    Weekly {
+        /// Output as JSON
+        #[arg(short, long)]
+        json: bool,
+
+        /// Number of weeks to show
+        #[arg(short, long, default_value = "4")]
+        weeks: u32,
+    },
     /// Show monthly cost summary
     Monthly {
         /// Output as JSON

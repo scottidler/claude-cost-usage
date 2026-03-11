@@ -222,6 +222,36 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
                 println!("{}", output::format_daily_text(&days));
             }
         }
+        Some(Command::Weekly { json, weeks: num_weeks }) => {
+            // Monday of the current ISO week
+            let current_monday = today - chrono::Duration::days(today.weekday().num_days_from_monday() as i64);
+            // Go back (num_weeks - 1) more weeks
+            let start = current_monday - chrono::Duration::weeks(i64::from(*num_weeks) - 1);
+            let (days, ..) = compute_summaries(cli, config, start, today, false)?;
+
+            // Group by ISO week
+            let mut weeks: BTreeMap<String, (f64, HashSet<String>)> = BTreeMap::new();
+            for day in &days {
+                let week_key = format!("{}-W{:02}", day.date.iso_week().year(), day.date.iso_week().week());
+                let entry = weeks.entry(week_key).or_insert_with(|| (0.0, HashSet::new()));
+                entry.0 += day.cost;
+                for i in 0..day.sessions {
+                    entry.1.insert(format!("{}_{}", day.date, i));
+                }
+            }
+
+            let week_list: Vec<(String, f64, usize)> = weeks
+                .into_iter()
+                .rev()
+                .map(|(week, (cost, sessions))| (week, cost, sessions.len()))
+                .collect();
+
+            if *json {
+                println!("{}", output::format_weekly_json(&week_list));
+            } else {
+                println!("{}", output::format_weekly_text(&week_list));
+            }
+        }
         Some(Command::Monthly { json }) => {
             // Get data for the last 12 months
             let start = NaiveDate::from_ymd_opt(today.year() - 1, today.month(), 1)
