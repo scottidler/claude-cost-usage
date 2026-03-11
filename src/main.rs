@@ -56,6 +56,7 @@ fn compute_summaries(
     config: &Config,
     start: NaiveDate,
     end: NaiveDate,
+    verbose: bool,
 ) -> Result<(Vec<DaySummary>, Vec<SessionSummary>)> {
     let projects_dir = cli
         .path
@@ -74,7 +75,7 @@ fn compute_summaries(
     // Try cache for single-day, non-verbose, no-filter queries
     let mtime_hash = cache::compute_mtime_hash(&filtered);
     if !cli.no_cache
-        && !cli.verbose
+        && !verbose
         && cli.model.is_none()
         && start == end
         && let Some(cached) = cache::load_cached_day(start, mtime_hash)
@@ -187,19 +188,23 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
     let today = Local::now().date_naive();
 
     match &cli.command {
-        None | Some(Command::Today) => {
-            let (days, sessions) = compute_summaries(cli, config, today, today)?;
+        None | Some(Command::Today { .. }) => {
+            let (json, verbose) = match &cli.command {
+                Some(Command::Today { json, verbose }) => (*json, *verbose),
+                _ => (false, false),
+            };
+            let (days, sessions) = compute_summaries(cli, config, today, today, verbose)?;
             let summary = days.first().cloned().unwrap_or(DaySummary {
                 date: today,
                 cost: 0.0,
                 sessions: 0,
             });
 
-            if cli.json {
+            if json {
                 println!("{}", output::format_today_json(&summary));
             } else {
                 println!("{}", output::format_today_text(&summary));
-                if cli.verbose {
+                if verbose {
                     let today_sessions: Vec<_> = sessions.into_iter().filter(|s| s.cost > 0.0).collect();
                     if !today_sessions.is_empty() {
                         println!("{}", output::format_verbose_sessions(&today_sessions));
@@ -207,21 +212,21 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
                 }
             }
         }
-        Some(Command::Daily) => {
-            let start = today - chrono::Duration::days(i64::from(cli.days) - 1);
-            let (days, ..) = compute_summaries(cli, config, start, today)?;
+        Some(Command::Daily { json, days: num_days }) => {
+            let start = today - chrono::Duration::days(i64::from(*num_days) - 1);
+            let (days, ..) = compute_summaries(cli, config, start, today, false)?;
 
-            if cli.json {
+            if *json {
                 println!("{}", output::format_daily_json(&days));
             } else {
                 println!("{}", output::format_daily_text(&days));
             }
         }
-        Some(Command::Monthly) => {
+        Some(Command::Monthly { json }) => {
             // Get data for the last 12 months
             let start = NaiveDate::from_ymd_opt(today.year() - 1, today.month(), 1)
                 .unwrap_or(NaiveDate::from_ymd_opt(today.year() - 1, 1, 1).expect("valid date"));
-            let (days, ..) = compute_summaries(cli, config, start, today)?;
+            let (days, ..) = compute_summaries(cli, config, start, today, false)?;
 
             // Group by month
             let mut months: BTreeMap<String, (f64, HashSet<String>)> = BTreeMap::new();
@@ -243,7 +248,7 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
                 .map(|(month, (cost, sessions))| (month, cost, sessions.len()))
                 .collect();
 
-            if cli.json {
+            if *json {
                 println!("{}", output::format_monthly_json(&month_list));
             } else {
                 println!("{}", output::format_monthly_text(&month_list));
@@ -256,7 +261,7 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
         Some(Command::Session { id }) => {
             // For session command, scan all recent files (last 30 days)
             let start = today - chrono::Duration::days(30);
-            let (_, sessions) = compute_summaries(cli, config, start, today)?;
+            let (_, sessions) = compute_summaries(cli, config, start, today, false)?;
 
             if id == "current" {
                 // Show the most recently active session

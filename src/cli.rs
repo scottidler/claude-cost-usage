@@ -17,18 +17,6 @@ pub struct Cli {
     #[arg(short, long)]
     pub path: Option<PathBuf>,
 
-    /// Output as JSON (for statusline integration)
-    #[arg(short, long)]
-    pub json: bool,
-
-    /// Show per-session breakdown
-    #[arg(short, long)]
-    pub verbose: bool,
-
-    /// Number of days to show (for daily command)
-    #[arg(short, long, default_value = "7")]
-    pub days: u32,
-
     /// Filter to a specific model
     #[arg(long)]
     pub model: Option<String>,
@@ -49,11 +37,31 @@ pub enum Command {
         id: String,
     },
     /// Show today's total cost (default)
-    Today,
+    Today {
+        /// Output as JSON
+        #[arg(short, long)]
+        json: bool,
+
+        /// Show per-session breakdown
+        #[arg(short, long)]
+        verbose: bool,
+    },
     /// Show daily costs for a date range
-    Daily,
+    Daily {
+        /// Output as JSON
+        #[arg(short, long)]
+        json: bool,
+
+        /// Number of days to show
+        #[arg(short, long, default_value = "7")]
+        days: u32,
+    },
     /// Show monthly cost summary
-    Monthly,
+    Monthly {
+        /// Output as JSON
+        #[arg(short, long)]
+        json: bool,
+    },
     /// Manage model pricing configuration
     Pricing {
         /// Fetch current pricing from Anthropic and update config
