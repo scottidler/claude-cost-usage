@@ -520,7 +520,46 @@ fn main() -> Result<()> {
     }
 
     // Phase 2: all other commands require config
-    let config = Config::load(cli.config.as_ref()).context("Failed to load configuration")?;
+    let config = match Config::load(cli.config.as_ref()) {
+        Ok(config) => config,
+        Err(e) => {
+            // If user explicitly specified a config path, always error
+            if cli.config.is_some() {
+                return Err(e.wrap_err("Failed to load configuration"));
+            }
+
+            // If the default config file exists but failed to parse, that's a real error
+            let default_path = update::config_path()?;
+            if default_path.exists() {
+                return Err(e.wrap_err("Failed to load configuration"));
+            }
+
+            // No config file - offer to create one
+            use std::io::IsTerminal;
+            if !std::io::stdin().is_terminal() {
+                eyre::bail!(
+                    "No config file found at {}. Run `ccu pricing --update` to generate one.",
+                    default_path.display()
+                );
+            }
+
+            eprintln!("No config file found at {}", default_path.display());
+            eprint!("Would you like to fetch pricing data now? [Y/n] ");
+            std::io::Write::flush(&mut std::io::stderr()).ok();
+
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input)?;
+            let input = input.trim().to_lowercase();
+
+            if input.is_empty() || input == "y" || input == "yes" {
+                update::run(None)?;
+                Config::load(cli.config.as_ref()).context("Failed to load configuration after pricing update")?
+            } else {
+                eprintln!("Run `ccu pricing --update` when ready.");
+                std::process::exit(1);
+            }
+        }
+    };
 
     info!("Config loaded, {} models in pricing table", config.pricing.len());
 
