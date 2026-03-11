@@ -135,7 +135,14 @@ fn compute_summaries(
     let mut day_costs: BTreeMap<NaiveDate, (f64, HashSet<String>)> = BTreeMap::new();
     let mut session_costs: BTreeMap<String, (f64, usize, chrono::DateTime<chrono::Utc>)> = BTreeMap::new();
 
+    let mut warned_models: HashSet<String> = HashSet::new();
+
     for entry in &all_entries {
+        // Skip synthetic entries (internal Claude Code artifacts, not real API calls)
+        if entry.model == "<synthetic>" {
+            continue;
+        }
+
         let date = parser::local_date(&entry.timestamp);
         if date < start || date > end {
             continue;
@@ -153,7 +160,9 @@ fn compute_summaries(
         let model_pricing = match config.pricing.get(normalized) {
             Some(p) => p,
             None => {
-                warn!("Unknown model: {} (normalized: {})", entry.model, normalized);
+                if warned_models.insert(normalized.to_string()) {
+                    warn!("Unknown model: {} (normalized: {})", entry.model, normalized);
+                }
                 continue;
             }
         };
