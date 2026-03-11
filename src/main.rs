@@ -18,6 +18,7 @@ mod output;
 mod parser;
 mod pricing;
 mod scanner;
+mod update;
 
 use cli::{Cli, Command};
 use config::Config;
@@ -248,6 +249,10 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
                 println!("{}", output::format_monthly_text(&month_list));
             }
         }
+        Some(Command::Pricing { .. }) => {
+            // Handled in main() before run() is called
+            unreachable!("Pricing command should be handled before run()")
+        }
         Some(Command::Session { id }) => {
             // For session command, scan all recent files (last 30 days)
             let start = today - chrono::Duration::days(30);
@@ -306,9 +311,23 @@ fn main() -> Result<()> {
     setup_logging().context("Failed to setup logging")?;
 
     let cli = Cli::parse();
+
+    // Phase 1: handle commands that don't need config
+    if let Some(Command::Pricing { update, from, .. }) = &cli.command
+        && (*update || from.is_some())
+    {
+        return update::run(from.as_ref());
+    }
+
+    // Phase 2: all other commands require config
     let config = Config::load(cli.config.as_ref()).context("Failed to load configuration")?;
 
     info!("Starting with config from: {:?}", cli.config);
+
+    // Pricing --show needs config, handled here
+    if let Some(Command::Pricing { .. }) = &cli.command {
+        return update::show(&config);
+    }
 
     run(&cli, &config).context("Application failed")?;
 

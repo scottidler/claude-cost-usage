@@ -54,4 +54,18 @@ pub enum Command {
     Daily,
     /// Show monthly cost summary
     Monthly,
+    /// Manage model pricing configuration
+    Pricing {
+        /// Fetch current pricing from Anthropic and update config
+        #[arg(long)]
+        update: bool,
+
+        /// Display current pricing table
+        #[arg(long)]
+        show: bool,
+
+        /// Read pricing from a local markdown file instead of fetching
+        #[arg(long)]
+        from: Option<PathBuf>,
+    },
 }
