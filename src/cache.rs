@@ -87,7 +87,7 @@ pub fn save_cached_day(date: NaiveDate, cost: f64, sessions: usize, mtime_hash: 
     let content = serde_json::to_string(&cached).context("Failed to serialize cache")?;
     fs::write(&path, content).context("Failed to write cache file")?;
 
-    info!("Cached day {} to {}", date, path.display());
+    trace!("Cached day {} to {}", date, path.display());
     Ok(())
 }
 
