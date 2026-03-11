@@ -81,6 +81,10 @@ pub enum Command {
         /// Output as JSON
         #[arg(short, long)]
         json: bool,
+
+        /// Number of months to show
+        #[arg(short, long, default_value = "12", value_parser = clap::value_parser!(u32).range(1..))]
+        months: u32,
     },
     /// Manage model pricing configuration
     Pricing {

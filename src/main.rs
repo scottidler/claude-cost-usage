@@ -184,6 +184,13 @@ fn compute_summaries(
     Ok((day_summaries, session_summaries))
 }
 
+fn subtract_months(date: NaiveDate, n: u32) -> NaiveDate {
+    let total_months = date.year() * 12 + date.month() as i32 - 1 - n as i32;
+    let target_year = total_months.div_euclid(12);
+    let target_month = (total_months.rem_euclid(12) + 1) as u32;
+    NaiveDate::from_ymd_opt(target_year, target_month, 1).expect("valid date")
+}
+
 fn run(cli: &Cli, config: &Config) -> Result<()> {
     let today = Local::now().date_naive();
 
@@ -273,10 +280,12 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
                 println!("{}", output::format_weekly_text(&week_list));
             }
         }
-        Some(Command::Monthly { json }) => {
-            // Get data for the last 12 months
-            let start = NaiveDate::from_ymd_opt(today.year() - 1, today.month(), 1)
-                .unwrap_or(NaiveDate::from_ymd_opt(today.year() - 1, 1, 1).expect("valid date"));
+        Some(Command::Monthly {
+            json,
+            months: num_months,
+        }) => {
+            let current_month_start = NaiveDate::from_ymd_opt(today.year(), today.month(), 1).expect("valid date");
+            let start = subtract_months(current_month_start, *num_months - 1);
             let (days, ..) = compute_summaries(cli, config, start, today, false)?;
 
             // Group by month
@@ -388,4 +397,44 @@ fn main() -> Result<()> {
     run(&cli, &config).context("Application failed")?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_subtract_months_same_year() {
+        let date = NaiveDate::from_ymd_opt(2026, 6, 1).expect("valid date");
+        let result = subtract_months(date, 3);
+        assert_eq!(result, NaiveDate::from_ymd_opt(2026, 3, 1).expect("valid date"));
+    }
+
+    #[test]
+    fn test_subtract_months_cross_year() {
+        let date = NaiveDate::from_ymd_opt(2026, 3, 1).expect("valid date");
+        let result = subtract_months(date, 5);
+        assert_eq!(result, NaiveDate::from_ymd_opt(2025, 10, 1).expect("valid date"));
+    }
+
+    #[test]
+    fn test_subtract_months_january_edge() {
+        let date = NaiveDate::from_ymd_opt(2026, 1, 1).expect("valid date");
+        let result = subtract_months(date, 1);
+        assert_eq!(result, NaiveDate::from_ymd_opt(2025, 12, 1).expect("valid date"));
+    }
+
+    #[test]
+    fn test_subtract_months_zero() {
+        let date = NaiveDate::from_ymd_opt(2026, 3, 1).expect("valid date");
+        let result = subtract_months(date, 0);
+        assert_eq!(result, date);
+    }
+
+    #[test]
+    fn test_subtract_months_twelve() {
+        let date = NaiveDate::from_ymd_opt(2026, 3, 1).expect("valid date");
+        let result = subtract_months(date, 12);
+        assert_eq!(result, NaiveDate::from_ymd_opt(2025, 3, 1).expect("valid date"));
+    }
 }
