@@ -20,6 +20,10 @@ pub struct Cli {
     #[arg(long)]
     pub model: Option<String>,
 
+    /// Set log level (trace, debug, info, warn, error)
+    #[arg(long, env = "CCU_LOG_LEVEL")]
+    pub log_level: Option<String>,
+
     /// Skip the cost cache, recompute from JSONL
     #[arg(long)]
     pub no_cache: bool,

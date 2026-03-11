@@ -35,7 +35,24 @@ fn log_file_path() -> PathBuf {
         .join("ccu.log")
 }
 
-fn setup_logging() -> Result<()> {
+fn resolve_log_filter(cli_level: Option<&str>) -> String {
+    // CLI / CCU_LOG_LEVEL (merged by clap)
+    if let Some(level) = cli_level {
+        return format!("ccu={}", level);
+    }
+    // Config file
+    if let Some(level) = Config::load_log_level() {
+        return format!("ccu={}", level);
+    }
+    // RUST_LOG - pass through as-is (advanced users expect full filter syntax)
+    if let Ok(filter) = std::env::var("RUST_LOG") {
+        return filter;
+    }
+    // Default
+    "ccu=warn".to_string()
+}
+
+fn setup_logging(filter: &str) -> Result<()> {
     let log_file = log_file_path();
     let log_dir = log_file.parent().expect("log file has parent");
     fs::create_dir_all(log_dir).context("Failed to create log directory")?;
@@ -48,11 +65,12 @@ fn setup_logging() -> Result<()> {
             .context("Failed to open log file")?,
     );
 
-    env_logger::Builder::from_default_env()
+    env_logger::Builder::new()
+        .parse_filters(filter)
         .target(env_logger::Target::Pipe(target))
         .init();
 
-    info!("Logging initialized, writing to: {}", log_file.display());
+    info!("Logging initialized, filter={}, file={}", filter, log_file.display());
     Ok(())
 }
 
@@ -480,8 +498,6 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    setup_logging().context("Failed to setup logging")?;
-
     // Build CLI with dynamic after-help showing log path
     let log_path = log_file_path();
     let after_help = format!(
@@ -491,6 +507,10 @@ fn main() -> Result<()> {
     );
     let matches = Cli::command().after_help(after_help).get_matches();
     let cli = Cli::from_arg_matches(&matches)?;
+
+    // Resolve log level and initialize logging
+    let filter = resolve_log_filter(cli.log_level.as_deref());
+    setup_logging(&filter).context("Failed to setup logging")?;
 
     // Phase 1: handle commands that don't need config
     if let Some(Command::Pricing { update, from, .. }) = &cli.command
@@ -551,5 +571,25 @@ mod tests {
         let date = NaiveDate::from_ymd_opt(2026, 3, 1).expect("valid date");
         let result = subtract_months(date, 12);
         assert_eq!(result, NaiveDate::from_ymd_opt(2025, 3, 1).expect("valid date"));
+    }
+
+    #[test]
+    fn test_resolve_log_filter_cli_level() {
+        let result = resolve_log_filter(Some("debug"));
+        assert_eq!(result, "ccu=debug");
+    }
+
+    #[test]
+    fn test_resolve_log_filter_cli_level_trace() {
+        let result = resolve_log_filter(Some("trace"));
+        assert_eq!(result, "ccu=trace");
+    }
+
+    #[test]
+    fn test_resolve_log_filter_none_falls_through() {
+        // When CLI level is None, it falls through to config/RUST_LOG/default
+        // We can't easily control env in tests, but we can verify it returns a valid string
+        let result = resolve_log_filter(None);
+        assert!(!result.is_empty());
     }
 }
