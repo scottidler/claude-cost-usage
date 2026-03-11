@@ -4,24 +4,15 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::pricing::{self, ModelPricing};
+use crate::pricing::ModelPricing;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Config {
     /// Override the Claude projects directory
     pub projects_dir: Option<PathBuf>,
     /// Pricing table - keyed by model name
     pub pricing: HashMap<String, ModelPricing>,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            projects_dir: None,
-            pricing: pricing::default_pricing_table(),
-        }
-    }
 }
 
 impl Config {
@@ -43,8 +34,10 @@ impl Config {
             }
         }
 
-        log::info!("No config file found, using defaults");
-        Ok(Self::default())
+        eyre::bail!(
+            "No config file found. Run `ccu pricing --update` to generate one.\n\
+             Config location: ~/.config/ccu/ccu.yml"
+        )
     }
 
     fn load_from_file<P: AsRef<Path>>(path: P) -> Result<Self> {

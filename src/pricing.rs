@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelPricing {
@@ -8,62 +7,6 @@ pub struct ModelPricing {
     pub cache_5m_write_per_mtok: f64,
     pub cache_1h_write_per_mtok: f64,
     pub cache_read_per_mtok: f64,
-}
-
-pub fn default_pricing_table() -> HashMap<String, ModelPricing> {
-    let mut table = HashMap::new();
-
-    for name in ["claude-opus-4-6", "claude-opus-4-5"] {
-        table.insert(
-            name.to_string(),
-            ModelPricing {
-                input_per_mtok: 5.0,
-                output_per_mtok: 25.0,
-                cache_5m_write_per_mtok: 6.25,
-                cache_1h_write_per_mtok: 10.0,
-                cache_read_per_mtok: 0.50,
-            },
-        );
-    }
-
-    for name in ["claude-opus-4-1", "claude-opus-4"] {
-        table.insert(
-            name.to_string(),
-            ModelPricing {
-                input_per_mtok: 15.0,
-                output_per_mtok: 75.0,
-                cache_5m_write_per_mtok: 18.75,
-                cache_1h_write_per_mtok: 30.0,
-                cache_read_per_mtok: 1.50,
-            },
-        );
-    }
-
-    for name in ["claude-sonnet-4-6", "claude-sonnet-4-5", "claude-sonnet-4"] {
-        table.insert(
-            name.to_string(),
-            ModelPricing {
-                input_per_mtok: 3.0,
-                output_per_mtok: 15.0,
-                cache_5m_write_per_mtok: 3.75,
-                cache_1h_write_per_mtok: 6.0,
-                cache_read_per_mtok: 0.30,
-            },
-        );
-    }
-
-    table.insert(
-        "claude-haiku-4-5".to_string(),
-        ModelPricing {
-            input_per_mtok: 1.0,
-            output_per_mtok: 5.0,
-            cache_5m_write_per_mtok: 1.25,
-            cache_1h_write_per_mtok: 2.0,
-            cache_read_per_mtok: 0.10,
-        },
-    );
-
-    table
 }
 
 /// Strip dated model ID suffix (e.g., `claude-opus-4-5-20251101` -> `claude-opus-4-5`)
@@ -102,19 +45,6 @@ mod tests {
     fn test_normalize_model_id_without_date() {
         assert_eq!(normalize_model_id("claude-opus-4-6"), "claude-opus-4-6");
         assert_eq!(normalize_model_id("claude-sonnet-4"), "claude-sonnet-4");
-    }
-
-    #[test]
-    fn test_pricing_table_has_all_models() {
-        let table = default_pricing_table();
-        assert!(table.contains_key("claude-opus-4-6"));
-        assert!(table.contains_key("claude-opus-4-5"));
-        assert!(table.contains_key("claude-opus-4-1"));
-        assert!(table.contains_key("claude-opus-4"));
-        assert!(table.contains_key("claude-sonnet-4-6"));
-        assert!(table.contains_key("claude-sonnet-4-5"));
-        assert!(table.contains_key("claude-sonnet-4"));
-        assert!(table.contains_key("claude-haiku-4-5"));
     }
 
     #[test]
