@@ -1,6 +1,22 @@
 # claude-cost-usage
 Rust CLI for reading Claude Code JSONL session files and computing daily/weekly cost summaries.
 
+## Statusline Integration
+
+Power your shell statusline with live Claude spend data. The example below shows `statusline.sh` using `ccu` to display Monthly, Weekly, Today, and Session costs:
+
+![statusline example](assets/statusline.png)
+
+```bash
+# Example statusline.sh snippet
+monthly=$(ccu monthly --json | jq -r '.total_cost')
+weekly=$(ccu weekly --json | jq -r '.total_cost')
+today=$(ccu today --json | jq -r '.total_cost')
+session=$(ccu session --json | jq -r '.total_cost')
+
+echo "Claude: M\$$monthly W\$$weekly D\$$today S\$$session"
+```
+
 ## Installation
 
 ### Quick Install
