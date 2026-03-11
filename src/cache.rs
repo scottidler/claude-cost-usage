@@ -1,6 +1,6 @@
 use chrono::NaiveDate;
 use eyre::{Context, Result};
-use log::{debug, info, warn};
+use log::{info, trace, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
 use std::fs;
@@ -23,7 +23,7 @@ pub struct CachedDay {
 
 /// Compute a hash of file paths, mtimes, and sizes for cache invalidation
 pub fn compute_mtime_hash(files: &[&SessionFile]) -> u64 {
-    debug!("compute_mtime_hash: file_count={}", files.len());
+    trace!("compute_mtime_hash: file_count={}", files.len());
 
     let mut hasher = DefaultHasher::new();
     for f in files {
@@ -93,7 +93,7 @@ pub fn save_cached_day(date: NaiveDate, cost: f64, sessions: usize, mtime_hash: 
 
 /// Remove stale cache entries older than the given number of days
 pub fn prune_cache(keep_days: u32) -> Result<()> {
-    debug!("prune_cache: keep_days={}", keep_days);
+    trace!("prune_cache: keep_days={}", keep_days);
 
     let dir = match cache_dir() {
         Some(d) => d,
