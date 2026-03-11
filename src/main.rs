@@ -199,9 +199,9 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
 
     match &cli.command {
         None | Some(Command::Today { .. }) => {
-            let (json, verbose) = match &cli.command {
-                Some(Command::Today { json, verbose }) => (*json, *verbose),
-                _ => (false, false),
+            let (json, total, verbose) = match &cli.command {
+                Some(Command::Today { json, total, verbose }) => (*json, *total, *verbose),
+                _ => (false, false, false),
             };
             let (days, sessions) = compute_summaries(cli, config, today, today, verbose)?;
             let summary = days.first().cloned().unwrap_or(DaySummary {
@@ -210,7 +210,9 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
                 sessions: 0,
             });
 
-            if json {
+            if total {
+                println!("{:.2}", summary.cost);
+            } else if json {
                 println!("{}", output::format_today_json(&summary));
             } else {
                 println!("{}", output::format_today_text(&summary));
@@ -222,7 +224,7 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
                 }
             }
         }
-        Some(Command::Yesterday { json, verbose }) => {
+        Some(Command::Yesterday { json, total, verbose }) => {
             let yesterday = today - chrono::Duration::days(1);
             let (days, sessions) = compute_summaries(cli, config, yesterday, yesterday, *verbose)?;
             let summary = days.first().cloned().unwrap_or(DaySummary {
@@ -231,7 +233,9 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
                 sessions: 0,
             });
 
-            if *json {
+            if *total {
+                println!("{:.2}", summary.cost);
+            } else if *json {
                 println!("{}", output::format_yesterday_json(&summary));
             } else {
                 println!("{}", output::format_yesterday_text(&summary));
@@ -245,6 +249,7 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
         }
         Some(Command::Daily {
             json,
+            total,
             days: num_days,
             average: show_avg,
             graph: show_graph,
@@ -252,35 +257,41 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
             let start = today - chrono::Duration::days(i64::from(*num_days) - 1);
             let (days, ..) = compute_summaries(cli, config, start, today, false)?;
 
-            let avg = if *show_avg {
-                let total: f64 = days.iter().map(|d| d.cost).sum();
-                let eff = average::effective_days(&days);
-                if eff >= 0.01 { Some((total / eff, eff)) } else { Some((0.0, eff)) }
+            if *total {
+                let sum: f64 = days.iter().map(|d| d.cost).sum();
+                println!("{:.2}", sum);
             } else {
-                None
-            };
-
-            if *json {
-                println!("{}", output::format_daily_json(&days, avg));
-            } else {
-                if *show_graph {
-                    println!("{}", graph::format_daily_text_with_bars(&days));
+                let avg = if *show_avg {
+                    let sum: f64 = days.iter().map(|d| d.cost).sum();
+                    let eff = average::effective_days(&days);
+                    if eff >= 0.01 { Some((sum / eff, eff)) } else { Some((0.0, eff)) }
                 } else {
-                    println!("{}", output::format_daily_text(&days));
-                }
-                if let Some((avg_cost, _)) = avg {
-                    println!("{}", average::format_average_text("day", avg_cost));
-                }
-                if *show_graph {
-                    println!("\n{}", graph::daily_sparkline(&days));
-                    if let Some(chart) = graph::daily_chart(&days) {
-                        println!("\n{}", chart);
+                    None
+                };
+
+                if *json {
+                    println!("{}", output::format_daily_json(&days, avg));
+                } else {
+                    if *show_graph {
+                        println!("{}", graph::format_daily_text_with_bars(&days));
+                    } else {
+                        println!("{}", output::format_daily_text(&days));
+                    }
+                    if let Some((avg_cost, _)) = avg {
+                        println!("{}", average::format_average_text("day", avg_cost));
+                    }
+                    if *show_graph {
+                        println!("\n{}", graph::daily_sparkline(&days));
+                        if let Some(chart) = graph::daily_chart(&days) {
+                            println!("\n{}", chart);
+                        }
                     }
                 }
             }
         }
         Some(Command::Weekly {
             json,
+            total,
             weeks: num_weeks,
             average: show_avg,
             graph: show_graph,
@@ -308,35 +319,41 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
                 .map(|(week, (cost, sessions))| (week, cost, sessions.len()))
                 .collect();
 
-            let avg = if *show_avg {
-                let total: f64 = week_list.iter().map(|(_, cost, _)| cost).sum();
-                let eff = average::effective_weeks(&week_list);
-                if eff >= 0.01 { Some((total / eff, eff)) } else { Some((0.0, eff)) }
+            if *total {
+                let sum: f64 = week_list.iter().map(|(_, cost, _)| cost).sum();
+                println!("{:.2}", sum);
             } else {
-                None
-            };
-
-            if *json {
-                println!("{}", output::format_weekly_json(&week_list, avg));
-            } else {
-                if *show_graph {
-                    println!("{}", graph::format_weekly_text_with_bars(&week_list));
+                let avg = if *show_avg {
+                    let sum: f64 = week_list.iter().map(|(_, cost, _)| cost).sum();
+                    let eff = average::effective_weeks(&week_list);
+                    if eff >= 0.01 { Some((sum / eff, eff)) } else { Some((0.0, eff)) }
                 } else {
-                    println!("{}", output::format_weekly_text(&week_list));
-                }
-                if let Some((avg_cost, _)) = avg {
-                    println!("{}", average::format_average_text("week", avg_cost));
-                }
-                if *show_graph {
-                    println!("\n{}", graph::weekly_sparkline(&week_list));
-                    if let Some(chart) = graph::weekly_chart(&week_list) {
-                        println!("\n{}", chart);
+                    None
+                };
+
+                if *json {
+                    println!("{}", output::format_weekly_json(&week_list, avg));
+                } else {
+                    if *show_graph {
+                        println!("{}", graph::format_weekly_text_with_bars(&week_list));
+                    } else {
+                        println!("{}", output::format_weekly_text(&week_list));
+                    }
+                    if let Some((avg_cost, _)) = avg {
+                        println!("{}", average::format_average_text("week", avg_cost));
+                    }
+                    if *show_graph {
+                        println!("\n{}", graph::weekly_sparkline(&week_list));
+                        if let Some(chart) = graph::weekly_chart(&week_list) {
+                            println!("\n{}", chart);
+                        }
                     }
                 }
             }
         }
         Some(Command::Monthly {
             json,
+            total,
             months: num_months,
             average: show_avg,
             graph: show_graph,
@@ -362,29 +379,34 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
                 .map(|(month, (cost, sessions))| (month, cost, sessions.len()))
                 .collect();
 
-            let avg = if *show_avg {
-                let total: f64 = month_list.iter().map(|(_, cost, _)| cost).sum();
-                let eff = average::effective_months(&month_list);
-                if eff >= 0.01 { Some((total / eff, eff)) } else { Some((0.0, eff)) }
+            if *total {
+                let sum: f64 = month_list.iter().map(|(_, cost, _)| cost).sum();
+                println!("{:.2}", sum);
             } else {
-                None
-            };
-
-            if *json {
-                println!("{}", output::format_monthly_json(&month_list, avg));
-            } else {
-                if *show_graph {
-                    println!("{}", graph::format_monthly_text_with_bars(&month_list));
+                let avg = if *show_avg {
+                    let sum: f64 = month_list.iter().map(|(_, cost, _)| cost).sum();
+                    let eff = average::effective_months(&month_list);
+                    if eff >= 0.01 { Some((sum / eff, eff)) } else { Some((0.0, eff)) }
                 } else {
-                    println!("{}", output::format_monthly_text(&month_list));
-                }
-                if let Some((avg_cost, _)) = avg {
-                    println!("{}", average::format_average_text("month", avg_cost));
-                }
-                if *show_graph {
-                    println!("\n{}", graph::monthly_sparkline(&month_list));
-                    if let Some(chart) = graph::monthly_chart(&month_list) {
-                        println!("\n{}", chart);
+                    None
+                };
+
+                if *json {
+                    println!("{}", output::format_monthly_json(&month_list, avg));
+                } else {
+                    if *show_graph {
+                        println!("{}", graph::format_monthly_text_with_bars(&month_list));
+                    } else {
+                        println!("{}", output::format_monthly_text(&month_list));
+                    }
+                    if let Some((avg_cost, _)) = avg {
+                        println!("{}", average::format_average_text("month", avg_cost));
+                    }
+                    if *show_graph {
+                        println!("\n{}", graph::monthly_sparkline(&month_list));
+                        if let Some(chart) = graph::monthly_chart(&month_list) {
+                            println!("\n{}", chart);
+                        }
                     }
                 }
             }

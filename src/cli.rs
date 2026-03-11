@@ -42,6 +42,10 @@ pub enum Command {
         #[arg(short, long)]
         json: bool,
 
+        /// Output only the total cost as a plain number
+        #[arg(short, long)]
+        total: bool,
+
         /// Show per-session breakdown
         #[arg(short, long)]
         verbose: bool,
@@ -52,6 +56,10 @@ pub enum Command {
         #[arg(short, long)]
         json: bool,
 
+        /// Output only the total cost as a plain number
+        #[arg(short, long)]
+        total: bool,
+
         /// Show per-session breakdown
         #[arg(short, long)]
         verbose: bool,
@@ -61,6 +69,10 @@ pub enum Command {
         /// Output as JSON
         #[arg(short, long)]
         json: bool,
+
+        /// Output only the total cost as a plain number
+        #[arg(short, long)]
+        total: bool,
 
         /// Number of days to show
         #[arg(short, long, default_value = "7")]
@@ -80,6 +92,10 @@ pub enum Command {
         #[arg(short, long)]
         json: bool,
 
+        /// Output only the total cost as a plain number
+        #[arg(short, long)]
+        total: bool,
+
         /// Number of weeks to show
         #[arg(short, long, default_value = "4")]
         weeks: u32,
@@ -97,6 +113,10 @@ pub enum Command {
         /// Output as JSON
         #[arg(short, long)]
         json: bool,
+
+        /// Output only the total cost as a plain number
+        #[arg(short, long)]
+        total: bool,
 
         /// Number of months to show
         #[arg(short, long, default_value = "12", value_parser = clap::value_parser!(u32).range(1..))]
