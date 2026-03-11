@@ -172,4 +172,115 @@ mod tests {
             let _ = fs::remove_file(dir.join(format!("{}.json", date)));
         }
     }
+
+    #[test]
+    fn test_compute_mtime_hash_changes_with_mtime() {
+        let f1 = [SessionFile {
+            path: PathBuf::from("/tmp/test.jsonl"),
+            mtime: SystemTime::UNIX_EPOCH,
+            size: 1024,
+        }];
+        let f2 = [SessionFile {
+            path: PathBuf::from("/tmp/test.jsonl"),
+            mtime: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(60),
+            size: 1024,
+        }];
+        let r1: Vec<&SessionFile> = f1.iter().collect();
+        let r2: Vec<&SessionFile> = f2.iter().collect();
+        assert_ne!(compute_mtime_hash(&r1), compute_mtime_hash(&r2));
+    }
+
+    #[test]
+    fn test_compute_mtime_hash_changes_with_path() {
+        let f1 = [SessionFile {
+            path: PathBuf::from("/tmp/a.jsonl"),
+            mtime: SystemTime::UNIX_EPOCH,
+            size: 1024,
+        }];
+        let f2 = [SessionFile {
+            path: PathBuf::from("/tmp/b.jsonl"),
+            mtime: SystemTime::UNIX_EPOCH,
+            size: 1024,
+        }];
+        let r1: Vec<&SessionFile> = f1.iter().collect();
+        let r2: Vec<&SessionFile> = f2.iter().collect();
+        assert_ne!(compute_mtime_hash(&r1), compute_mtime_hash(&r2));
+    }
+
+    #[test]
+    fn test_compute_mtime_hash_empty() {
+        let refs: Vec<&SessionFile> = vec![];
+        let h1 = compute_mtime_hash(&refs);
+        let h2 = compute_mtime_hash(&refs);
+        assert_eq!(h1, h2);
+    }
+
+    #[test]
+    fn test_load_cached_day_corrupt_json() {
+        let dir = cache_dir().expect("cache dir");
+        fs::create_dir_all(&dir).expect("create cache dir");
+
+        let date = NaiveDate::from_ymd_opt(2098, 1, 1).expect("valid date");
+        let path = dir.join(format!("{}.json", date));
+        fs::write(&path, "not valid json {{{").expect("write corrupt file");
+
+        let result = load_cached_day(date, 0);
+        assert!(result.is_none());
+
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_prune_cache_removes_old_entries() {
+        let dir = cache_dir().expect("cache dir");
+        fs::create_dir_all(&dir).expect("create cache dir");
+
+        // Create a cache file for a date well in the past (200 days ago)
+        let old_date = chrono::Local::now().date_naive() - chrono::Duration::days(200);
+        let old_path = dir.join(format!("{}.json", old_date));
+        let cached = CachedDay {
+            cost: 1.0,
+            sessions: 1,
+            mtime_hash: 0,
+        };
+        fs::write(&old_path, serde_json::to_string(&cached).expect("serialize")).expect("write");
+        assert!(old_path.exists());
+
+        // Create a cache file for today (should be kept)
+        let today = chrono::Local::now().date_naive();
+        let today_path = dir.join(format!("{}.json", today));
+        fs::write(&today_path, serde_json::to_string(&cached).expect("serialize")).expect("write");
+
+        prune_cache(90).expect("prune");
+
+        assert!(!old_path.exists(), "old cache file should be pruned");
+        assert!(today_path.exists(), "today's cache file should be kept");
+
+        let _ = fs::remove_file(&today_path);
+    }
+
+    #[test]
+    fn test_prune_cache_ignores_non_json_files() {
+        let dir = cache_dir().expect("cache dir");
+        fs::create_dir_all(&dir).expect("create cache dir");
+
+        let non_json = dir.join("notes.txt");
+        fs::write(&non_json, "keep me").expect("write");
+
+        prune_cache(0).expect("prune with 0 days should not error");
+
+        assert!(non_json.exists(), "non-json file should be untouched");
+
+        let _ = fs::remove_file(&non_json);
+    }
+
+    #[test]
+    fn test_prune_cache_nonexistent_dir() {
+        // prune_cache should succeed gracefully when cache dir doesn't exist
+        // We can't easily force cache_dir() to return a nonexistent path,
+        // but we can verify it doesn't error when the dir exists but is empty
+        let dir = cache_dir().expect("cache dir");
+        fs::create_dir_all(&dir).expect("create cache dir");
+        prune_cache(90).expect("prune empty dir should succeed");
+    }
 }
