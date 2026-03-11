@@ -9,10 +9,10 @@ Power your shell statusline with live Claude spend data. The example below shows
 
 ```bash
 # Example statusline.sh snippet
-monthly=$(ccu monthly --json | jq -r '.total_cost')
-weekly=$(ccu weekly --json | jq -r '.total_cost')
-today=$(ccu today --json | jq -r '.total_cost')
-session=$(ccu session --json | jq -r '.total_cost')
+monthly=$(ccu monthly --total -m 1)
+weekly=$(ccu weekly --total -w 1)
+today=$(ccu today --total)
+session=$(ccu session current --total)
 
 echo "Claude: M\$$monthly W\$$weekly D\$$today S\$$session"
 ```
@@ -49,17 +49,28 @@ ccu
 # Yesterday's cost
 ccu yesterday
 
-# Last 7 days
+# Last 7 days (daily breakdown)
+ccu daily
+
+# Weekly summary (last 4 weeks)
 ccu weekly
 
-# Specific date range
-ccu --start 2026-03-01 --end 2026-03-11
+# Monthly summary (last 12 months)
+ccu monthly
+
+# Plain cost number (for scripts/statuslines)
+ccu today --total       # e.g. "14.23"
+ccu monthly --total -m 1
 
 # JSON output
-ccu --json
+ccu today --json
 
 # Verbose (per-session breakdown)
-ccu -v
+ccu today -v
+
+# With graphs
+ccu daily -g
+ccu weekly -g
 ```
 
 ## Version Reporting
