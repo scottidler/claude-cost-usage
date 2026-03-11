@@ -511,9 +511,8 @@ fn main() -> Result<()> {
     let display = dirs::home_dir()
         .and_then(|h| log_path.strip_prefix(&h).ok().map(|p| format!("~/{}", p.display())))
         .unwrap_or_else(|| log_path.display().to_string());
-    let after_help = format!(
-        "Parses Claude Code JSONL session logs to compute cost summaries.\n\nLogs are written to: {display}"
-    );
+    let after_help =
+        format!("Parses Claude Code JSONL session logs to compute cost summaries.\n\nLogs are written to: {display}");
     let matches = Cli::command().after_help(after_help).get_matches();
     let cli = Cli::from_arg_matches(&matches)?;
 
@@ -543,29 +542,31 @@ fn main() -> Result<()> {
                 return Err(e.wrap_err("Failed to load configuration"));
             }
 
-            // No config file - offer to create one
-            use std::io::IsTerminal;
-            if !std::io::stdin().is_terminal() {
-                eyre::bail!(
-                    "No config file found at {}. Run `ccu pricing --update` to generate one.",
-                    default_path.display()
-                );
-            }
-
-            eprintln!("No config file found at {}", default_path.display());
-            eprint!("Would you like to fetch pricing data now? [Y/n] ");
-            std::io::Write::flush(&mut std::io::stderr()).ok();
-
-            let mut input = String::new();
-            std::io::stdin().read_line(&mut input)?;
-            let input = input.trim().to_lowercase();
-
-            if input.is_empty() || input == "y" || input == "yes" {
-                update::run(None)?;
-                Config::load(cli.config.as_ref()).context("Failed to load configuration after pricing update")?
-            } else {
-                eprintln!("Run `ccu pricing --update` when ready.");
-                std::process::exit(1);
+            // No config file - try fetching live pricing first, fall back to embedded defaults
+            eprintln!("No config file found. Attempting to fetch latest pricing...");
+            match update::run(None) {
+                Ok(()) => {
+                    // Fetch succeeded - load the freshly written config
+                    Config::load(cli.config.as_ref()).context("Failed to load configuration after pricing fetch")?
+                }
+                Err(fetch_err) => {
+                    // Fetch failed - fall back to embedded defaults
+                    eprintln!("Failed to fetch pricing: {}. Using built-in defaults.", fetch_err);
+                    let defaults = pricing::default_pricing();
+                    let config = Config {
+                        pricing: defaults,
+                        ..Config::default()
+                    };
+                    if let Some(parent) = default_path.parent() {
+                        fs::create_dir_all(parent).context("Failed to create config directory")?;
+                    }
+                    let yaml = serde_yaml::to_string(&config).context("Failed to serialize default config")?;
+                    fs::write(&default_path, &yaml)
+                        .with_context(|| format!("Failed to write config to {}", default_path.display()))?;
+                    eprintln!("Wrote built-in defaults to: {}", default_path.display());
+                    eprintln!("Run `ccu pricing --update` to refresh when connectivity is available.");
+                    config
+                }
             }
         }
     };
