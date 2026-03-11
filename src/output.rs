@@ -1,6 +1,8 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
 
+use crate::table;
+
 #[derive(Debug, Clone)]
 pub struct DaySummary {
     pub date: NaiveDate,
@@ -111,12 +113,11 @@ pub fn format_yesterday_json(summary: &DaySummary) -> String {
 }
 
 pub fn format_daily_text(days: &[DaySummary]) -> String {
-    let mut out = String::new();
-    out.push_str(&format!("{:<10}  {:>8}  {:>8}\n", "Date", "Cost", "Sessions"));
-    for day in days {
-        out.push_str(&format!("{}  ${:>7.2}  {:>8}\n", day.date, day.cost, day.sessions,));
-    }
-    out.trim_end().to_string()
+    let rows = days
+        .iter()
+        .map(|d| vec![d.date.to_string(), format!("${:.2}", d.cost), d.sessions.to_string()])
+        .collect();
+    table::build(&["Date", "Cost", "Sessions"], rows, &[1, 2])
 }
 
 pub fn format_daily_json(days: &[DaySummary], avg: Option<(f64, f64)>) -> String {
@@ -136,12 +137,11 @@ pub fn format_daily_json(days: &[DaySummary], avg: Option<(f64, f64)>) -> String
 }
 
 pub fn format_weekly_text(weeks: &[(String, f64, usize)]) -> String {
-    let mut out = String::new();
-    out.push_str(&format!("{:<10}  {:>8}  {:>8}\n", "Week", "Cost", "Sessions"));
-    for (week, cost, sessions) in weeks {
-        out.push_str(&format!("{}  ${:>7.2}  {:>8}\n", week, cost, sessions,));
-    }
-    out.trim_end().to_string()
+    let rows = weeks
+        .iter()
+        .map(|(w, c, s)| vec![w.clone(), format!("${:.2}", c), s.to_string()])
+        .collect();
+    table::build(&["Week", "Cost", "Sessions"], rows, &[1, 2])
 }
 
 pub fn format_weekly_json(weeks: &[(String, f64, usize)], avg: Option<(f64, f64)>) -> String {
@@ -161,12 +161,11 @@ pub fn format_weekly_json(weeks: &[(String, f64, usize)], avg: Option<(f64, f64)
 }
 
 pub fn format_monthly_text(months: &[(String, f64, usize)]) -> String {
-    let mut out = String::new();
-    out.push_str(&format!("{:<10}  {:>8}  {:>8}\n", "Month", "Cost", "Sessions"));
-    for (month, cost, sessions) in months {
-        out.push_str(&format!("{}  ${:>7.2}  {:>8}\n", month, cost, sessions,));
-    }
-    out.trim_end().to_string()
+    let rows = months
+        .iter()
+        .map(|(m, c, s)| vec![m.clone(), format!("${:.2}", c), s.to_string()])
+        .collect();
+    table::build(&["Month", "Cost", "Sessions"], rows, &[1, 2])
 }
 
 pub fn format_monthly_json(months: &[(String, f64, usize)], avg: Option<(f64, f64)>) -> String {

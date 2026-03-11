@@ -1,4 +1,5 @@
 use crate::output::DaySummary;
+use crate::table;
 
 // Left-fractional blocks: index 0 = empty, 1 = 1/8th, ..., 8 = full block
 const BLOCKS: [char; 9] = [
@@ -35,49 +36,42 @@ pub fn bar(value: f64, max_value: f64, max_width: usize) -> String {
 /// Format daily text output with inline bars
 pub fn format_daily_text_with_bars(days: &[DaySummary]) -> String {
     let max_cost = days.iter().map(|d| d.cost).fold(0.0_f64, f64::max);
-    let mut out = String::new();
-    out.push_str(&format!(
-        "{:<10}  {:>8}  {:>8}  {}\n",
-        "Date", "Cost", "Sessions", "Graph"
-    ));
-    for day in days {
-        let bar_str = bar(day.cost, max_cost, 20);
-        out.push_str(&format!(
-            "{}  ${:>7.2}  {:>8}  {}\n",
-            day.date, day.cost, day.sessions, bar_str
-        ));
-    }
-    out.trim_end().to_string()
+    let rows = days
+        .iter()
+        .map(|d| {
+            vec![
+                d.date.to_string(),
+                format!("${:.2}", d.cost),
+                d.sessions.to_string(),
+                bar(d.cost, max_cost, 20),
+            ]
+        })
+        .collect();
+    table::build(&["Date", "Cost", "Sessions", "Graph"], rows, &[1, 2])
 }
 
 /// Format weekly text output with inline bars
 pub fn format_weekly_text_with_bars(weeks: &[(String, f64, usize)]) -> String {
     let max_cost = weeks.iter().map(|(_, c, _)| *c).fold(0.0_f64, f64::max);
-    let mut out = String::new();
-    out.push_str(&format!(
-        "{:<10}  {:>8}  {:>8}  {}\n",
-        "Week", "Cost", "Sessions", "Graph"
-    ));
-    for (week, cost, sessions) in weeks {
-        let bar_str = bar(*cost, max_cost, 20);
-        out.push_str(&format!("{}  ${:>7.2}  {:>8}  {}\n", week, cost, sessions, bar_str));
-    }
-    out.trim_end().to_string()
+    let rows = weeks
+        .iter()
+        .map(|(w, c, s)| {
+            vec![w.clone(), format!("${:.2}", c), s.to_string(), bar(*c, max_cost, 20)]
+        })
+        .collect();
+    table::build(&["Week", "Cost", "Sessions", "Graph"], rows, &[1, 2])
 }
 
 /// Format monthly text output with inline bars
 pub fn format_monthly_text_with_bars(months: &[(String, f64, usize)]) -> String {
     let max_cost = months.iter().map(|(_, c, _)| *c).fold(0.0_f64, f64::max);
-    let mut out = String::new();
-    out.push_str(&format!(
-        "{:<10}  {:>8}  {:>8}  {}\n",
-        "Month", "Cost", "Sessions", "Graph"
-    ));
-    for (month, cost, sessions) in months {
-        let bar_str = bar(*cost, max_cost, 20);
-        out.push_str(&format!("{}  ${:>7.2}  {:>8}  {}\n", month, cost, sessions, bar_str));
-    }
-    out.trim_end().to_string()
+    let rows = months
+        .iter()
+        .map(|(m, c, s)| {
+            vec![m.clone(), format!("${:.2}", c), s.to_string(), bar(*c, max_cost, 20)]
+        })
+        .collect();
+    table::build(&["Month", "Cost", "Sessions", "Graph"], rows, &[1, 2])
 }
 
 /// Render a sparkline trend indicator from cost data.

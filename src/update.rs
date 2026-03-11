@@ -6,6 +6,7 @@ use std::process::Command;
 
 use crate::config::Config;
 use crate::pricing::ModelPricing;
+use crate::table;
 
 const EXTRACTION_PROMPT: &str = r#"Extract Claude model pricing from the following markdown and output YAML.
 
@@ -97,37 +98,40 @@ pub fn show(config: &Config) -> Result<()> {
     }
 
     println!("Current pricing (per million tokens):\n");
-    println!(
-        "{:<25} {:>8} {:>8} {:>10} {:>10} {:>10}",
-        "Model", "Input", "Output", "Cache5mW", "Cache1hW", "CacheR"
-    );
-    println!("{}", "-".repeat(75));
 
     let mut models: Vec<_> = config.pricing.iter().collect();
     models.sort_by_key(|(name, _)| (*name).clone());
 
+    let mut rows: Vec<Vec<String>> = Vec::new();
     for (name, p) in &models {
-        println!(
-            "{:<25} ${:>7.2} ${:>7.2} ${:>9.2} ${:>9.2} ${:>9.2}",
-            name,
-            p.input_per_mtok,
-            p.output_per_mtok,
-            p.cache_5m_write_per_mtok,
-            p.cache_1h_write_per_mtok,
-            p.cache_read_per_mtok
-        );
+        rows.push(vec![
+            name.to_string(),
+            format!("${:.2}", p.input_per_mtok),
+            format!("${:.2}", p.output_per_mtok),
+            format!("${:.2}", p.cache_5m_write_per_mtok),
+            format!("${:.2}", p.cache_1h_write_per_mtok),
+            format!("${:.2}", p.cache_read_per_mtok),
+        ]);
         if p.input_per_mtok_above_200k.is_some() {
-            println!(
-                "  {:<23} ${:>7.2} ${:>7.2} ${:>9.2} ${:>9.2} ${:>9.2}",
-                "(>200K)",
-                p.input_per_mtok_above_200k.unwrap_or(0.0),
-                p.output_per_mtok_above_200k.unwrap_or(0.0),
-                p.cache_5m_write_per_mtok_above_200k.unwrap_or(0.0),
-                p.cache_1h_write_per_mtok_above_200k.unwrap_or(0.0),
-                p.cache_read_per_mtok_above_200k.unwrap_or(0.0),
-            );
+            rows.push(vec![
+                format!("  (>200K)"),
+                format!("${:.2}", p.input_per_mtok_above_200k.unwrap_or(0.0)),
+                format!("${:.2}", p.output_per_mtok_above_200k.unwrap_or(0.0)),
+                format!("${:.2}", p.cache_5m_write_per_mtok_above_200k.unwrap_or(0.0)),
+                format!("${:.2}", p.cache_1h_write_per_mtok_above_200k.unwrap_or(0.0)),
+                format!("${:.2}", p.cache_read_per_mtok_above_200k.unwrap_or(0.0)),
+            ]);
         }
     }
+
+    println!(
+        "{}",
+        table::build(
+            &["Model", "Input", "Output", "Cache5mW", "Cache1hW", "CacheR"],
+            rows,
+            &[1, 2, 3, 4, 5],
+        )
+    );
 
     Ok(())
 }

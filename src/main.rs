@@ -20,6 +20,7 @@ mod output;
 mod parser;
 mod pricing;
 mod scanner;
+mod table;
 mod update;
 
 use cli::{Cli, Command};
