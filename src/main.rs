@@ -3,9 +3,9 @@
 #![deny(unused_variables)]
 
 use chrono::{Datelike, Local, NaiveDate};
-use clap::Parser;
+use clap::{CommandFactory, FromArgMatches};
 use eyre::{Context, Result};
-use log::{info, warn};
+use log::{debug, info, warn};
 use rayon::prelude::*;
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
@@ -27,15 +27,18 @@ use cli::{Cli, Command};
 use config::Config;
 use output::{DaySummary, SessionSummary};
 
-fn setup_logging() -> Result<()> {
-    let log_dir = dirs::data_local_dir()
+fn log_file_path() -> PathBuf {
+    dirs::data_local_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("ccu")
-        .join("logs");
+        .join("logs")
+        .join("ccu.log")
+}
 
-    fs::create_dir_all(&log_dir).context("Failed to create log directory")?;
-
-    let log_file = log_dir.join("ccu.log");
+fn setup_logging() -> Result<()> {
+    let log_file = log_file_path();
+    let log_dir = log_file.parent().expect("log file has parent");
+    fs::create_dir_all(log_dir).context("Failed to create log directory")?;
 
     let target = Box::new(
         fs::OpenOptions::new()
@@ -61,6 +64,11 @@ fn compute_summaries(
     end: NaiveDate,
     verbose: bool,
 ) -> Result<(Vec<DaySummary>, Vec<SessionSummary>)> {
+    debug!(
+        "compute_summaries: start={}, end={}, verbose={}, model={:?}",
+        start, end, verbose, cli.model
+    );
+
     let projects_dir = cli
         .path
         .clone()
@@ -195,6 +203,8 @@ fn subtract_months(date: NaiveDate, n: u32) -> NaiveDate {
 }
 
 fn run(cli: &Cli, config: &Config) -> Result<()> {
+    debug!("run: command={:?}", cli.command.as_ref().map(std::mem::discriminant));
+
     let today = Local::now().date_naive();
 
     match &cli.command {
@@ -472,7 +482,15 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
 fn main() -> Result<()> {
     setup_logging().context("Failed to setup logging")?;
 
-    let cli = Cli::parse();
+    // Build CLI with dynamic after-help showing log path
+    let log_path = log_file_path();
+    let after_help = format!(
+        "Parses Claude Code JSONL session logs to compute cost summaries.\n\n\
+         Logs are written to: {}",
+        log_path.display()
+    );
+    let matches = Cli::command().after_help(after_help).get_matches();
+    let cli = Cli::from_arg_matches(&matches)?;
 
     // Phase 1: handle commands that don't need config
     if let Some(Command::Pricing { update, from, .. }) = &cli.command
@@ -484,7 +502,7 @@ fn main() -> Result<()> {
     // Phase 2: all other commands require config
     let config = Config::load(cli.config.as_ref()).context("Failed to load configuration")?;
 
-    info!("Starting with config from: {:?}", cli.config);
+    info!("Config loaded, {} models in pricing table", config.pricing.len());
 
     // Pricing --show needs config, handled here
     if let Some(Command::Pricing { .. }) = &cli.command {

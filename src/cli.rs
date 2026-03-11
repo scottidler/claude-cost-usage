@@ -6,7 +6,6 @@ use std::path::PathBuf;
     name = "ccu",
     about = "Claude Code cost and usage tracker",
     version = env!("GIT_DESCRIBE"),
-    after_help = "Parses Claude Code JSONL session logs to compute cost summaries."
 )]
 pub struct Cli {
     /// Path to config file

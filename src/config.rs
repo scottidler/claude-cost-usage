@@ -17,6 +17,8 @@ pub struct Config {
 
 impl Config {
     pub fn load(config_path: Option<&PathBuf>) -> Result<Self> {
+        log::debug!("Config::load: config_path={:?}", config_path);
+
         if let Some(path) = config_path {
             return Self::load_from_file(path).context(format!("Failed to load config from {}", path.display()));
         }

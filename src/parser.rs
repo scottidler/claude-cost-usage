@@ -1,6 +1,6 @@
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use eyre::Result;
-use log::warn;
+use log::{debug, warn};
 use serde::Deserialize;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -56,6 +56,8 @@ struct RawCacheCreation {
 
 /// Parse a JSONL file and yield assistant entries
 pub fn parse_jsonl_file(path: &Path) -> Result<Vec<AssistantEntry>> {
+    debug!("parse_jsonl_file: path={}", path.display());
+
     let file = std::fs::File::open(path)?;
     let reader = BufReader::new(file);
     let mut entries = Vec::new();

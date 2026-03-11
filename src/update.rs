@@ -1,4 +1,5 @@
 use eyre::{Context, Result};
+use log::debug;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -43,6 +44,8 @@ const JINA_URL: &str = "https://r.jina.ai/https://docs.anthropic.com/en/docs/abo
 
 /// Run `ccu pricing --update` - fetch pricing, extract via LLM, write config
 pub fn run(from: Option<&PathBuf>) -> Result<()> {
+    debug!("update::run: from={:?}", from);
+
     let markdown = match from {
         Some(path) => {
             eprintln!("Reading pricing from: {}", path.display());
@@ -93,6 +96,8 @@ pub fn run(from: Option<&PathBuf>) -> Result<()> {
 
 /// Display current pricing table from config
 pub fn show(config: &Config) -> Result<()> {
+    debug!("update::show: model_count={}", config.pricing.len());
+
     if config.pricing.is_empty() {
         eyre::bail!("No pricing data in config. Run `ccu pricing --update` to populate.");
     }
@@ -138,6 +143,8 @@ pub fn show(config: &Config) -> Result<()> {
 
 /// Fetch markdown from jina.ai reader
 fn fetch_markdown() -> Result<String> {
+    debug!("fetch_markdown: url={}", JINA_URL);
+
     let output = Command::new("curl")
         .args(["-sS", "--max-time", "30", JINA_URL])
         .output()
@@ -158,6 +165,8 @@ fn fetch_markdown() -> Result<String> {
 
 /// Extract pricing by spawning `claude -p`
 fn extract_pricing(markdown: &str) -> Result<String> {
+    debug!("extract_pricing: markdown_length={}", markdown.len());
+
     let prompt = format!("{}\n\n---\n\n{}", EXTRACTION_PROMPT, markdown);
 
     let output = Command::new("claude")
@@ -228,7 +237,7 @@ fn validate_pricing(pricing: &HashMap<String, ModelPricing>) -> Result<()> {
 }
 
 /// Get the config file path
-fn config_path() -> Result<PathBuf> {
+pub fn config_path() -> Result<PathBuf> {
     let config_dir = dirs::config_dir().ok_or_else(|| eyre::eyre!("Cannot determine config directory"))?;
     Ok(config_dir.join("ccu").join("ccu.yml"))
 }

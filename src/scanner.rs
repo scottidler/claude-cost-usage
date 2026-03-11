@@ -1,6 +1,6 @@
 use chrono::NaiveDate;
 use eyre::{Context, Result};
-use log::{info, warn};
+use log::{debug, info, warn};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -14,6 +14,8 @@ pub struct SessionFile {
 
 /// Discover all JSONL session files under the Claude projects directory
 pub fn find_session_files(projects_dir: &Path) -> Result<Vec<SessionFile>> {
+    debug!("find_session_files: projects_dir={}", projects_dir.display());
+
     if !projects_dir.exists() {
         return Ok(Vec::new());
     }
@@ -88,6 +90,13 @@ pub fn find_session_files(projects_dir: &Path) -> Result<Vec<SessionFile>> {
 /// Uses file mtime as a heuristic - files modified on a given day likely contain
 /// entries for that day.
 pub fn filter_by_date_range(files: &[SessionFile], start: NaiveDate, end: NaiveDate) -> Vec<&SessionFile> {
+    debug!(
+        "filter_by_date_range: start={}, end={}, input_count={}",
+        start,
+        end,
+        files.len()
+    );
+
     files
         .iter()
         .filter(|f| {
