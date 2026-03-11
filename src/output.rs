@@ -75,6 +75,29 @@ pub fn format_today_json(summary: &DaySummary) -> String {
     serde_json::to_string(&json).unwrap_or_default()
 }
 
+#[derive(Serialize)]
+pub struct YesterdayJson {
+    pub yesterday: f64,
+    pub sessions: usize,
+}
+
+pub fn format_yesterday_text(summary: &DaySummary) -> String {
+    format!(
+        "Yesterday: ${:.2} ({} session{})",
+        summary.cost,
+        summary.sessions,
+        if summary.sessions == 1 { "" } else { "s" }
+    )
+}
+
+pub fn format_yesterday_json(summary: &DaySummary) -> String {
+    let json = YesterdayJson {
+        yesterday: round_cents(summary.cost),
+        sessions: summary.sessions,
+    };
+    serde_json::to_string(&json).unwrap_or_default()
+}
+
 pub fn format_daily_text(days: &[DaySummary]) -> String {
     let mut out = String::new();
     for day in days {
@@ -210,6 +233,38 @@ mod tests {
         let json = format_today_json(&summary);
         assert!(json.contains("\"today\":14.24"));
         assert!(json.contains("\"sessions\":3"));
+    }
+
+    #[test]
+    fn test_format_yesterday_text() {
+        let summary = DaySummary {
+            date: NaiveDate::from_ymd_opt(2026, 3, 10).expect("valid date"),
+            cost: 22.175,
+            sessions: 5,
+        };
+        assert_eq!(format_yesterday_text(&summary), "Yesterday: $22.18 (5 sessions)");
+    }
+
+    #[test]
+    fn test_format_yesterday_text_singular() {
+        let summary = DaySummary {
+            date: NaiveDate::from_ymd_opt(2026, 3, 10).expect("valid date"),
+            cost: 3.00,
+            sessions: 1,
+        };
+        assert_eq!(format_yesterday_text(&summary), "Yesterday: $3.00 (1 session)");
+    }
+
+    #[test]
+    fn test_format_yesterday_json() {
+        let summary = DaySummary {
+            date: NaiveDate::from_ymd_opt(2026, 3, 10).expect("valid date"),
+            cost: 22.176,
+            sessions: 5,
+        };
+        let json = format_yesterday_json(&summary);
+        assert!(json.contains("\"yesterday\":22.18"));
+        assert!(json.contains("\"sessions\":5"));
     }
 
     #[test]

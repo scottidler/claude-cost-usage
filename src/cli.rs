@@ -46,6 +46,16 @@ pub enum Command {
         #[arg(short, long)]
         verbose: bool,
     },
+    /// Show yesterday's total cost
+    Yesterday {
+        /// Output as JSON
+        #[arg(short, long)]
+        json: bool,
+
+        /// Show per-session breakdown
+        #[arg(short, long)]
+        verbose: bool,
+    },
     /// Show daily costs for a date range
     Daily {
         /// Output as JSON

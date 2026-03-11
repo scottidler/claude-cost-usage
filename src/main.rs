@@ -212,6 +212,27 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
                 }
             }
         }
+        Some(Command::Yesterday { json, verbose }) => {
+            let yesterday = today - chrono::Duration::days(1);
+            let (days, sessions) = compute_summaries(cli, config, yesterday, yesterday, *verbose)?;
+            let summary = days.first().cloned().unwrap_or(DaySummary {
+                date: yesterday,
+                cost: 0.0,
+                sessions: 0,
+            });
+
+            if *json {
+                println!("{}", output::format_yesterday_json(&summary));
+            } else {
+                println!("{}", output::format_yesterday_text(&summary));
+                if *verbose {
+                    let yesterday_sessions: Vec<_> = sessions.into_iter().filter(|s| s.cost > 0.0).collect();
+                    if !yesterday_sessions.is_empty() {
+                        println!("{}", output::format_verbose_sessions(&yesterday_sessions));
+                    }
+                }
+            }
+        }
         Some(Command::Daily { json, days: num_days }) => {
             let start = today - chrono::Duration::days(i64::from(*num_days) - 1);
             let (days, ..) = compute_summaries(cli, config, start, today, false)?;
