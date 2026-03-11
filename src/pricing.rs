@@ -1,4 +1,13 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
+
+/// Return embedded default pricing compiled into the binary.
+pub fn default_pricing() -> HashMap<String, ModelPricing> {
+    let yaml = include_str!("../data/default-pricing.yml");
+    let parsed: crate::update::PricingOnly = serde_yaml::from_str(yaml).expect("embedded pricing YAML is valid");
+    parsed.pricing
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelPricing {
@@ -118,6 +127,24 @@ mod tests {
             cache_5m_write_per_mtok_above_200k: Some(12.50),
             cache_1h_write_per_mtok_above_200k: Some(20.0),
             cache_read_per_mtok_above_200k: Some(1.0),
+        }
+    }
+
+    #[test]
+    fn test_default_pricing_is_valid() {
+        let pricing = default_pricing();
+        assert!(!pricing.is_empty(), "embedded pricing must not be empty");
+        // All three model families must be present
+        assert!(pricing.contains_key("claude-opus-4-6"), "missing opus");
+        assert!(pricing.contains_key("claude-sonnet-4-6"), "missing sonnet");
+        assert!(pricing.contains_key("claude-haiku-4-5"), "missing haiku");
+        // All values must be positive
+        for (model, p) in &pricing {
+            assert!(p.input_per_mtok > 0.0, "{model} input_per_mtok <= 0");
+            assert!(p.output_per_mtok > 0.0, "{model} output_per_mtok <= 0");
+            assert!(p.cache_5m_write_per_mtok > 0.0, "{model} cache_5m_write <= 0");
+            assert!(p.cache_1h_write_per_mtok > 0.0, "{model} cache_1h_write <= 0");
+            assert!(p.cache_read_per_mtok > 0.0, "{model} cache_read <= 0");
         }
     }
 

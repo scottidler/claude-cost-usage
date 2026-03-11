@@ -40,7 +40,7 @@ Rules:
 - Output ONLY the YAML block, no explanations or markdown fences
 "#;
 
-const JINA_URL: &str = "https://r.jina.ai/https://docs.anthropic.com/en/docs/about-claude/models";
+const JINA_URL: &str = "https://r.jina.ai/https://docs.anthropic.com/en/docs/about-claude/pricing";
 
 /// Run `ccu pricing --update` - fetch pricing, extract via LLM, write config
 pub fn run(from: Option<&PathBuf>) -> Result<()> {
@@ -170,7 +170,7 @@ fn extract_pricing(markdown: &str) -> Result<String> {
     let prompt = format!("{}\n\n---\n\n{}", EXTRACTION_PROMPT, markdown);
 
     let output = Command::new("claude")
-        .args(["-p", &prompt])
+        .args(["--allowedTools", "WebFetch", "-p", &prompt])
         .output()
         .context("Failed to run `claude` - is Claude Code CLI installed?")?;
 
@@ -335,13 +335,25 @@ fn print_summary(pricing: &HashMap<String, ModelPricing>) {
 
 /// Helper struct for parsing just the pricing section from LLM output
 #[derive(Debug, serde::Deserialize)]
-struct PricingOnly {
-    pricing: HashMap<String, ModelPricing>,
+pub struct PricingOnly {
+    pub pricing: HashMap<String, ModelPricing>,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_jina_url_points_to_pricing_page() {
+        assert!(
+            JINA_URL.contains("/pricing"),
+            "JINA_URL must fetch the pricing page, not the models page"
+        );
+        assert!(
+            !JINA_URL.contains("/models"),
+            "JINA_URL must not point to the models page"
+        );
+    }
 
     #[test]
     fn test_strip_code_fences_yaml() {
