@@ -498,12 +498,12 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    // Build CLI with dynamic after-help showing log path
     let log_path = log_file_path();
+    let display = dirs::home_dir()
+        .and_then(|h| log_path.strip_prefix(&h).ok().map(|p| format!("~/{}", p.display())))
+        .unwrap_or_else(|| log_path.display().to_string());
     let after_help = format!(
-        "Parses Claude Code JSONL session logs to compute cost summaries.\n\n\
-         Logs are written to: {}",
-        log_path.display()
+        "Parses Claude Code JSONL session logs to compute cost summaries.\n\nLogs are written to: {display}"
     );
     let matches = Cli::command().after_help(after_help).get_matches();
     let cli = Cli::from_arg_matches(&matches)?;
