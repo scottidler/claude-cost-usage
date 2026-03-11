@@ -86,8 +86,6 @@ fn compute_summaries(
         return Ok((vec![summary], Vec::new()));
     }
 
-    let pricing_table = pricing::default_pricing_table();
-
     // Parse all files in parallel
     let file_paths: Vec<_> = filtered.iter().map(|f| f.path.clone()).collect();
     let all_entries: Vec<_> = file_paths
@@ -121,7 +119,7 @@ fn compute_summaries(
         }
 
         let normalized = pricing::normalize_model_id(&entry.model);
-        let base_pricing = match pricing_table.get(normalized) {
+        let model_pricing = match config.pricing.get(normalized) {
             Some(p) => p,
             None => {
                 warn!("Unknown model: {} (normalized: {})", entry.model, normalized);
@@ -129,8 +127,7 @@ fn compute_summaries(
             }
         };
 
-        let effective_pricing = config.apply_overrides(normalized, base_pricing);
-        let cost = pricing::calculate_cost(&effective_pricing, &entry.usage);
+        let cost = pricing::calculate_cost(model_pricing, &entry.usage);
 
         let day_entry = day_costs.entry(date).or_insert_with(|| (0.0, HashSet::new()));
         day_entry.0 += cost;

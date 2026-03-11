@@ -1,6 +1,7 @@
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelPricing {
     pub input_per_mtok: f64,
     pub output_per_mtok: f64,
@@ -12,7 +13,6 @@ pub struct ModelPricing {
 pub fn default_pricing_table() -> HashMap<String, ModelPricing> {
     let mut table = HashMap::new();
 
-    // Opus 4.6 / 4.5
     for name in ["claude-opus-4-6", "claude-opus-4-5"] {
         table.insert(
             name.to_string(),
@@ -26,7 +26,6 @@ pub fn default_pricing_table() -> HashMap<String, ModelPricing> {
         );
     }
 
-    // Opus 4.1 / 4
     for name in ["claude-opus-4-1", "claude-opus-4"] {
         table.insert(
             name.to_string(),
@@ -40,7 +39,6 @@ pub fn default_pricing_table() -> HashMap<String, ModelPricing> {
         );
     }
 
-    // Sonnet 4.6 / 4.5 / 4
     for name in ["claude-sonnet-4-6", "claude-sonnet-4-5", "claude-sonnet-4"] {
         table.insert(
             name.to_string(),
@@ -54,7 +52,6 @@ pub fn default_pricing_table() -> HashMap<String, ModelPricing> {
         );
     }
 
-    // Haiku 4.5
     table.insert(
         "claude-haiku-4-5".to_string(),
         ModelPricing {
@@ -71,7 +68,6 @@ pub fn default_pricing_table() -> HashMap<String, ModelPricing> {
 
 /// Strip dated model ID suffix (e.g., `claude-opus-4-5-20251101` -> `claude-opus-4-5`)
 pub fn normalize_model_id(model_id: &str) -> &str {
-    // Check if the last segment is an 8-digit date
     if let Some(pos) = model_id.rfind('-') {
         let suffix = &model_id[pos + 1..];
         if suffix.len() == 8 && suffix.chars().all(|c| c.is_ascii_digit()) {
@@ -140,7 +136,6 @@ mod tests {
         };
 
         let cost = calculate_cost(&pricing, &usage);
-        // 1M input * $5/M + 100K output * $25/M = $5 + $2.50 = $7.50
         assert!((cost - 7.50).abs() < 0.001);
     }
 
@@ -163,7 +158,6 @@ mod tests {
         };
 
         let cost = calculate_cost(&pricing, &usage);
-        // Small but nonzero
         assert!(cost > 0.0);
         assert!(cost < 0.1);
     }

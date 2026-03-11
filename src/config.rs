@@ -4,24 +4,24 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::pricing::ModelPricing;
+use crate::pricing::{self, ModelPricing};
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Config {
     /// Override the Claude projects directory
     pub projects_dir: Option<PathBuf>,
-    /// Custom pricing overrides per model
-    pub pricing: HashMap<String, PricingOverride>,
+    /// Pricing table - keyed by model name
+    pub pricing: HashMap<String, ModelPricing>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct PricingOverride {
-    pub input_per_mtok: Option<f64>,
-    pub output_per_mtok: Option<f64>,
-    pub cache_5m_write_per_mtok: Option<f64>,
-    pub cache_1h_write_per_mtok: Option<f64>,
-    pub cache_read_per_mtok: Option<f64>,
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            projects_dir: None,
+            pricing: pricing::default_pricing_table(),
+        }
+    }
 }
 
 impl Config {
@@ -52,24 +52,5 @@ impl Config {
         let config: Self = serde_yaml::from_str(&content).context("Failed to parse config file")?;
         log::info!("Loaded config from: {}", path.as_ref().display());
         Ok(config)
-    }
-
-    /// Apply pricing overrides to a base pricing entry
-    pub fn apply_overrides(&self, model: &str, base: &ModelPricing) -> ModelPricing {
-        if let Some(overrides) = self.pricing.get(model) {
-            ModelPricing {
-                input_per_mtok: overrides.input_per_mtok.unwrap_or(base.input_per_mtok),
-                output_per_mtok: overrides.output_per_mtok.unwrap_or(base.output_per_mtok),
-                cache_5m_write_per_mtok: overrides
-                    .cache_5m_write_per_mtok
-                    .unwrap_or(base.cache_5m_write_per_mtok),
-                cache_1h_write_per_mtok: overrides
-                    .cache_1h_write_per_mtok
-                    .unwrap_or(base.cache_1h_write_per_mtok),
-                cache_read_per_mtok: overrides.cache_read_per_mtok.unwrap_or(base.cache_read_per_mtok),
-            }
-        } else {
-            base.clone()
-        }
     }
 }
