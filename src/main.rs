@@ -15,6 +15,7 @@ mod average;
 mod cache;
 mod cli;
 mod config;
+mod graph;
 mod output;
 mod parser;
 mod pricing;
@@ -245,6 +246,7 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
             json,
             days: num_days,
             average: show_avg,
+            graph: show_graph,
         }) => {
             let start = today - chrono::Duration::days(i64::from(*num_days) - 1);
             let (days, ..) = compute_summaries(cli, config, start, today, false)?;
@@ -260,9 +262,16 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
             if *json {
                 println!("{}", output::format_daily_json(&days, avg));
             } else {
-                println!("{}", output::format_daily_text(&days));
+                if *show_graph {
+                    println!("{}", graph::format_daily_text_with_bars(&days));
+                } else {
+                    println!("{}", output::format_daily_text(&days));
+                }
                 if let Some((avg_cost, _)) = avg {
                     println!("{}", average::format_average_text("day", avg_cost));
+                }
+                if *show_graph {
+                    graph::daily_chart(&days, avg.map(|(a, _)| a));
                 }
             }
         }
@@ -270,6 +279,7 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
             json,
             weeks: num_weeks,
             average: show_avg,
+            graph: show_graph,
         }) => {
             // Monday of the current ISO week
             let current_monday = today - chrono::Duration::days(today.weekday().num_days_from_monday() as i64);
@@ -305,9 +315,16 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
             if *json {
                 println!("{}", output::format_weekly_json(&week_list, avg));
             } else {
-                println!("{}", output::format_weekly_text(&week_list));
+                if *show_graph {
+                    println!("{}", graph::format_weekly_text_with_bars(&week_list));
+                } else {
+                    println!("{}", output::format_weekly_text(&week_list));
+                }
                 if let Some((avg_cost, _)) = avg {
                     println!("{}", average::format_average_text("week", avg_cost));
+                }
+                if *show_graph {
+                    graph::weekly_chart(&week_list, avg.map(|(a, _)| a));
                 }
             }
         }
@@ -315,6 +332,7 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
             json,
             months: num_months,
             average: show_avg,
+            graph: show_graph,
         }) => {
             let current_month_start = NaiveDate::from_ymd_opt(today.year(), today.month(), 1).expect("valid date");
             let start = subtract_months(current_month_start, *num_months - 1);
@@ -348,9 +366,16 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
             if *json {
                 println!("{}", output::format_monthly_json(&month_list, avg));
             } else {
-                println!("{}", output::format_monthly_text(&month_list));
+                if *show_graph {
+                    println!("{}", graph::format_monthly_text_with_bars(&month_list));
+                } else {
+                    println!("{}", output::format_monthly_text(&month_list));
+                }
                 if let Some((avg_cost, _)) = avg {
                     println!("{}", average::format_average_text("month", avg_cost));
+                }
+                if *show_graph {
+                    graph::monthly_chart(&month_list, avg.map(|(a, _)| a));
                 }
             }
         }

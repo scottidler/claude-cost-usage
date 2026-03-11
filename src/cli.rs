@@ -69,6 +69,10 @@ pub enum Command {
         /// Show partial-period-weighted average
         #[arg(short, long)]
         average: bool,
+
+        /// Show inline bar charts and braille line chart
+        #[arg(short, long)]
+        graph: bool,
     },
     /// Show weekly cost summary
     Weekly {
@@ -83,6 +87,10 @@ pub enum Command {
         /// Show partial-period-weighted average
         #[arg(short, long)]
         average: bool,
+
+        /// Show inline bar charts and braille line chart
+        #[arg(short, long)]
+        graph: bool,
     },
     /// Show monthly cost summary
     Monthly {
@@ -97,6 +105,10 @@ pub enum Command {
         /// Show partial-period-weighted average
         #[arg(short, long)]
         average: bool,
+
+        /// Show inline bar charts and braille line chart
+        #[arg(short, long)]
+        graph: bool,
     },
     /// Manage model pricing configuration
     Pricing {
