@@ -1,5 +1,3 @@
-use textplots::{Chart, LabelBuilder, LabelFormat, Plot, Shape, TickDisplay, TickDisplayBuilder};
-
 use crate::output::DaySummary;
 
 // Left-fractional blocks: index 0 = empty, 1 = 1/8th, ..., 8 = full block
@@ -38,15 +36,15 @@ pub fn bar(value: f64, max_value: f64, max_width: usize) -> String {
 pub fn format_daily_text_with_bars(days: &[DaySummary]) -> String {
     let max_cost = days.iter().map(|d| d.cost).fold(0.0_f64, f64::max);
     let mut out = String::new();
+    out.push_str(&format!(
+        "{:<10}  {:>8}  {:>8}  {}\n",
+        "Date", "Cost", "Sessions", "Graph"
+    ));
     for day in days {
         let bar_str = bar(day.cost, max_cost, 20);
         out.push_str(&format!(
-            "{}  ${:>7.2}  ({} session{})  {}\n",
-            day.date,
-            day.cost,
-            day.sessions,
-            if day.sessions == 1 { "" } else { "s" },
-            bar_str
+            "{}  ${:>7.2}  {:>8}  {}\n",
+            day.date, day.cost, day.sessions, bar_str
         ));
     }
     out.trim_end().to_string()
@@ -56,16 +54,13 @@ pub fn format_daily_text_with_bars(days: &[DaySummary]) -> String {
 pub fn format_weekly_text_with_bars(weeks: &[(String, f64, usize)]) -> String {
     let max_cost = weeks.iter().map(|(_, c, _)| *c).fold(0.0_f64, f64::max);
     let mut out = String::new();
+    out.push_str(&format!(
+        "{:<10}  {:>8}  {:>8}  {}\n",
+        "Week", "Cost", "Sessions", "Graph"
+    ));
     for (week, cost, sessions) in weeks {
         let bar_str = bar(*cost, max_cost, 20);
-        out.push_str(&format!(
-            "{}  ${:>7.2}  ({} session{})  {}\n",
-            week,
-            cost,
-            sessions,
-            if *sessions == 1 { "" } else { "s" },
-            bar_str
-        ));
+        out.push_str(&format!("{}  ${:>7.2}  {:>8}  {}\n", week, cost, sessions, bar_str));
     }
     out.trim_end().to_string()
 }
@@ -74,74 +69,77 @@ pub fn format_weekly_text_with_bars(weeks: &[(String, f64, usize)]) -> String {
 pub fn format_monthly_text_with_bars(months: &[(String, f64, usize)]) -> String {
     let max_cost = months.iter().map(|(_, c, _)| *c).fold(0.0_f64, f64::max);
     let mut out = String::new();
+    out.push_str(&format!(
+        "{:<10}  {:>8}  {:>8}  {}\n",
+        "Month", "Cost", "Sessions", "Graph"
+    ));
     for (month, cost, sessions) in months {
         let bar_str = bar(*cost, max_cost, 20);
-        out.push_str(&format!(
-            "{}  ${:>7.2}  ({} session{})  {}\n",
-            month,
-            cost,
-            sessions,
-            if *sessions == 1 { "" } else { "s" },
-            bar_str
-        ));
+        out.push_str(&format!("{}  ${:>7.2}  {:>8}  {}\n", month, cost, sessions, bar_str));
     }
     out.trim_end().to_string()
 }
 
-/// Print a braille line chart from cost data points to stdout.
-/// Points are displayed in chronological order (reversed from the input which is newest-first).
-pub fn print_chart(costs: &[f64], avg: Option<f64>) {
+/// Render a sparkline trend indicator from cost data.
+/// Input is newest-first; sparkline is displayed in chronological order.
+pub fn render_sparkline(costs: &[f64]) -> String {
     if costs.is_empty() {
-        return;
+        return String::new();
     }
-
-    // Reverse to chronological order (input is newest-first)
     let chronological: Vec<f64> = costs.iter().rev().copied().collect();
-    let points: Vec<(f32, f32)> = chronological
-        .iter()
-        .enumerate()
-        .map(|(i, c)| (i as f32, *c as f32))
-        .collect();
+    format!("Trend: {}", sparklines::spark(&chronological))
+}
 
-    let xmax = (chronological.len() - 1).max(1) as f32;
-    let line_shape = Shape::Lines(&points);
-
-    match avg {
-        Some(avg_val) => {
-            let avg_shape = Shape::Continuous(Box::new(move |_| avg_val as f32));
-            Chart::new(120, 40, 0.0, xmax)
-                .y_tick_display(TickDisplay::Dense)
-                .y_label_format(LabelFormat::Custom(Box::new(|v| format!("${:.0}", v))))
-                .lineplot(&line_shape)
-                .lineplot(&avg_shape)
-                .display();
-        }
-        None => {
-            Chart::new(120, 40, 0.0, xmax)
-                .y_tick_display(TickDisplay::Dense)
-                .y_label_format(LabelFormat::Custom(Box::new(|v| format!("${:.0}", v))))
-                .lineplot(&line_shape)
-                .display();
-        }
+/// Render a Unicode box-drawing line chart from cost data.
+/// Returns None when < 3 data points or on error.
+/// Input is newest-first; chart is displayed in chronological order.
+pub fn render_chart(costs: &[f64]) -> Option<String> {
+    if costs.len() < 3 {
+        return None;
     }
+    let chronological: Vec<f64> = costs.iter().rev().copied().collect();
+    let config = rasciichart::Config {
+        height: 7,
+        label_format: "${:.2}".to_string(),
+        ..rasciichart::Config::default()
+    };
+    rasciichart::plot_with_config(&chronological, config).ok()
 }
 
-/// Print a braille line chart for daily data to stdout
-pub fn daily_chart(days: &[DaySummary], avg: Option<f64>) {
+/// Render a line chart for daily data
+pub fn daily_chart(days: &[DaySummary]) -> Option<String> {
     let costs: Vec<f64> = days.iter().map(|d| d.cost).collect();
-    print_chart(&costs, avg);
+    render_chart(&costs)
 }
 
-/// Print a braille line chart for weekly data to stdout
-pub fn weekly_chart(weeks: &[(String, f64, usize)], avg: Option<f64>) {
+/// Render a sparkline for daily data
+pub fn daily_sparkline(days: &[DaySummary]) -> String {
+    let costs: Vec<f64> = days.iter().map(|d| d.cost).collect();
+    render_sparkline(&costs)
+}
+
+/// Render a line chart for weekly data
+pub fn weekly_chart(weeks: &[(String, f64, usize)]) -> Option<String> {
     let costs: Vec<f64> = weeks.iter().map(|(_, c, _)| *c).collect();
-    print_chart(&costs, avg);
+    render_chart(&costs)
 }
 
-/// Print a braille line chart for monthly data to stdout
-pub fn monthly_chart(months: &[(String, f64, usize)], avg: Option<f64>) {
+/// Render a sparkline for weekly data
+pub fn weekly_sparkline(weeks: &[(String, f64, usize)]) -> String {
+    let costs: Vec<f64> = weeks.iter().map(|(_, c, _)| *c).collect();
+    render_sparkline(&costs)
+}
+
+/// Render a line chart for monthly data
+pub fn monthly_chart(months: &[(String, f64, usize)]) -> Option<String> {
     let costs: Vec<f64> = months.iter().map(|(_, c, _)| *c).collect();
-    print_chart(&costs, avg);
+    render_chart(&costs)
+}
+
+/// Render a sparkline for monthly data
+pub fn monthly_sparkline(months: &[(String, f64, usize)]) -> String {
+    let costs: Vec<f64> = months.iter().map(|(_, c, _)| *c).collect();
+    render_sparkline(&costs)
 }
 
 #[cfg(test)]
@@ -162,7 +160,6 @@ mod tests {
     #[test]
     fn test_bar_max_value() {
         let result = bar(100.0, 100.0, 20);
-        // Should be 20 full blocks
         assert_eq!(result.chars().count(), 20);
         assert!(result.chars().all(|c| c == '\u{2588}'));
     }
@@ -170,14 +167,12 @@ mod tests {
     #[test]
     fn test_bar_half_value() {
         let result = bar(50.0, 100.0, 20);
-        // Should be 10 full blocks
         assert_eq!(result.chars().count(), 10);
     }
 
     #[test]
     fn test_bar_fractional() {
         let result = bar(25.0, 100.0, 20);
-        // 25% of 20 = 5 full blocks
         assert_eq!(result.chars().count(), 5);
     }
 
@@ -196,14 +191,44 @@ mod tests {
             },
         ];
         let text = format_daily_text_with_bars(&days);
+        assert!(text.contains("Date"));
+        assert!(text.contains("Graph"));
         assert!(text.contains("2026-03-10"));
         assert!(text.contains("2026-03-09"));
-        // The max value row should have full bars
         assert!(text.contains('\u{2588}'));
+        // No parentheses
+        assert!(!text.contains("session)"));
     }
 
     #[test]
-    fn test_daily_chart_no_panic() {
+    fn test_render_chart_returns_none_for_few_points() {
+        assert!(render_chart(&[]).is_none());
+        assert!(render_chart(&[10.0]).is_none());
+        assert!(render_chart(&[10.0, 20.0]).is_none());
+    }
+
+    #[test]
+    fn test_render_chart_returns_some_for_enough_points() {
+        let result = render_chart(&[30.0, 20.0, 10.0]);
+        assert!(result.is_some());
+        let chart = result.expect("chart should be Some");
+        assert!(!chart.is_empty());
+    }
+
+    #[test]
+    fn test_render_sparkline() {
+        let sparkline = render_sparkline(&[30.0, 20.0, 10.0]);
+        assert!(sparkline.starts_with("Trend: "));
+        assert!(sparkline.len() > 7);
+    }
+
+    #[test]
+    fn test_render_sparkline_empty() {
+        assert_eq!(render_sparkline(&[]), "");
+    }
+
+    #[test]
+    fn test_daily_chart_few_points() {
         let days = vec![
             DaySummary {
                 date: NaiveDate::from_ymd_opt(2026, 3, 10).expect("valid date"),
@@ -216,48 +241,21 @@ mod tests {
                 sessions: 1,
             },
         ];
-        daily_chart(&days, None);
+        assert!(daily_chart(&days).is_none());
     }
 
     #[test]
-    fn test_daily_chart_with_avg_no_panic() {
-        let days = vec![
-            DaySummary {
-                date: NaiveDate::from_ymd_opt(2026, 3, 10).expect("valid date"),
-                cost: 20.0,
-                sessions: 3,
-            },
-            DaySummary {
-                date: NaiveDate::from_ymd_opt(2026, 3, 9).expect("valid date"),
-                cost: 10.0,
-                sessions: 1,
-            },
-        ];
-        daily_chart(&days, Some(15.0));
-    }
-
-    #[test]
-    fn test_weekly_chart_no_panic() {
+    fn test_weekly_chart_few_points() {
         let weeks = vec![
             ("2026-W11".to_string(), 47.82, 12),
             ("2026-W10".to_string(), 123.45, 28),
         ];
-        weekly_chart(&weeks, None);
+        assert!(weekly_chart(&weeks).is_none());
     }
 
     #[test]
-    fn test_monthly_chart_no_panic() {
+    fn test_monthly_chart_few_points() {
         let months = vec![("2026-03".to_string(), 200.0, 30), ("2026-02".to_string(), 150.0, 25)];
-        monthly_chart(&months, None);
-    }
-
-    #[test]
-    fn test_chart_empty_data() {
-        print_chart(&[], None);
-    }
-
-    #[test]
-    fn test_chart_single_point() {
-        print_chart(&[10.0], None);
+        assert!(monthly_chart(&months).is_none());
     }
 }

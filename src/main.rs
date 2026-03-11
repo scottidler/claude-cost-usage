@@ -271,7 +271,10 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
                     println!("{}", average::format_average_text("day", avg_cost));
                 }
                 if *show_graph {
-                    graph::daily_chart(&days, avg.map(|(a, _)| a));
+                    println!("\n{}", graph::daily_sparkline(&days));
+                    if let Some(chart) = graph::daily_chart(&days) {
+                        println!("\n{}", chart);
+                    }
                 }
             }
         }
@@ -324,7 +327,10 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
                     println!("{}", average::format_average_text("week", avg_cost));
                 }
                 if *show_graph {
-                    graph::weekly_chart(&week_list, avg.map(|(a, _)| a));
+                    println!("\n{}", graph::weekly_sparkline(&week_list));
+                    if let Some(chart) = graph::weekly_chart(&week_list) {
+                        println!("\n{}", chart);
+                    }
                 }
             }
         }
@@ -375,7 +381,10 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
                     println!("{}", average::format_average_text("month", avg_cost));
                 }
                 if *show_graph {
-                    graph::monthly_chart(&month_list, avg.map(|(a, _)| a));
+                    println!("\n{}", graph::monthly_sparkline(&month_list));
+                    if let Some(chart) = graph::monthly_chart(&month_list) {
+                        println!("\n{}", chart);
+                    }
                 }
             }
         }

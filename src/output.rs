@@ -112,14 +112,9 @@ pub fn format_yesterday_json(summary: &DaySummary) -> String {
 
 pub fn format_daily_text(days: &[DaySummary]) -> String {
     let mut out = String::new();
+    out.push_str(&format!("{:<10}  {:>8}  {:>8}\n", "Date", "Cost", "Sessions"));
     for day in days {
-        out.push_str(&format!(
-            "{}  ${:>7.2}  ({} session{})\n",
-            day.date,
-            day.cost,
-            day.sessions,
-            if day.sessions == 1 { "" } else { "s" }
-        ));
+        out.push_str(&format!("{}  ${:>7.2}  {:>8}\n", day.date, day.cost, day.sessions,));
     }
     out.trim_end().to_string()
 }
@@ -142,14 +137,9 @@ pub fn format_daily_json(days: &[DaySummary], avg: Option<(f64, f64)>) -> String
 
 pub fn format_weekly_text(weeks: &[(String, f64, usize)]) -> String {
     let mut out = String::new();
+    out.push_str(&format!("{:<10}  {:>8}  {:>8}\n", "Week", "Cost", "Sessions"));
     for (week, cost, sessions) in weeks {
-        out.push_str(&format!(
-            "{}  ${:>7.2}  ({} session{})\n",
-            week,
-            cost,
-            sessions,
-            if *sessions == 1 { "" } else { "s" }
-        ));
+        out.push_str(&format!("{}  ${:>7.2}  {:>8}\n", week, cost, sessions,));
     }
     out.trim_end().to_string()
 }
@@ -172,14 +162,9 @@ pub fn format_weekly_json(weeks: &[(String, f64, usize)], avg: Option<(f64, f64)
 
 pub fn format_monthly_text(months: &[(String, f64, usize)]) -> String {
     let mut out = String::new();
+    out.push_str(&format!("{:<10}  {:>8}  {:>8}\n", "Month", "Cost", "Sessions"));
     for (month, cost, sessions) in months {
-        out.push_str(&format!(
-            "{}  ${:>7.2}  ({} session{})\n",
-            month,
-            cost,
-            sessions,
-            if *sessions == 1 { "" } else { "s" }
-        ));
+        out.push_str(&format!("{}  ${:>7.2}  {:>8}\n", month, cost, sessions,));
     }
     out.trim_end().to_string()
 }
@@ -300,9 +285,15 @@ mod tests {
             },
         ];
         let text = format_daily_text(&days);
+        assert!(text.contains("Date"));
+        assert!(text.contains("Cost"));
+        assert!(text.contains("Sessions"));
         assert!(text.contains("2026-03-10"));
         assert!(text.contains("14.23"));
         assert!(text.contains("2026-03-09"));
+        // No parentheses or pluralization
+        assert!(!text.contains("session)"));
+        assert!(!text.contains("sessions)"));
     }
 
     #[test]
@@ -312,19 +303,16 @@ mod tests {
             ("2026-W10".to_string(), 123.45, 28),
         ];
         let text = format_weekly_text(&weeks);
+        assert!(text.contains("Week"));
+        assert!(text.contains("Cost"));
+        assert!(text.contains("Sessions"));
         assert!(text.contains("2026-W11"));
         assert!(text.contains("47.82"));
-        assert!(text.contains("12 sessions"));
         assert!(text.contains("2026-W10"));
         assert!(text.contains("123.45"));
-    }
-
-    #[test]
-    fn test_format_weekly_text_singular_session() {
-        let weeks = vec![("2026-W11".to_string(), 5.00, 1)];
-        let text = format_weekly_text(&weeks);
-        assert!(text.contains("1 session)"));
-        assert!(!text.contains("1 sessions"));
+        // No parentheses or pluralization
+        assert!(!text.contains("session)"));
+        assert!(!text.contains("sessions)"));
     }
 
     #[test]
