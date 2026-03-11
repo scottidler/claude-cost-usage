@@ -104,7 +104,7 @@ fn compute_summaries(
 
     // Group by day and session, compute costs
     let mut day_costs: BTreeMap<NaiveDate, (f64, HashSet<String>)> = BTreeMap::new();
-    let mut session_costs: BTreeMap<String, (f64, usize)> = BTreeMap::new();
+    let mut session_costs: BTreeMap<String, (f64, usize, chrono::DateTime<chrono::Utc>)> = BTreeMap::new();
 
     for entry in &all_entries {
         let date = parser::local_date(&entry.timestamp);
@@ -136,9 +136,14 @@ fn compute_summaries(
         day_entry.0 += cost;
         day_entry.1.insert(entry.session_id.clone());
 
-        let session_entry = session_costs.entry(entry.session_id.clone()).or_insert((0.0, 0));
+        let session_entry = session_costs
+            .entry(entry.session_id.clone())
+            .or_insert((0.0, 0, entry.timestamp));
         session_entry.0 += cost;
         session_entry.1 += 1;
+        if entry.timestamp > session_entry.2 {
+            session_entry.2 = entry.timestamp;
+        }
     }
 
     let day_summaries: Vec<DaySummary> = day_costs
@@ -162,10 +167,11 @@ fn compute_summaries(
 
     let session_summaries: Vec<SessionSummary> = session_costs
         .into_iter()
-        .map(|(session_id, (cost, entries))| SessionSummary {
+        .map(|(session_id, (cost, entries, last_active))| SessionSummary {
             session_id,
             cost,
             entries,
+            last_active,
         })
         .collect();
 
@@ -251,11 +257,8 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
             let (_, sessions) = compute_summaries(cli, config, start, today)?;
 
             if id == "current" {
-                // Show the most recent session (highest cost as heuristic)
-                if let Some(session) = sessions
-                    .iter()
-                    .max_by(|a, b| a.cost.partial_cmp(&b.cost).unwrap_or(std::cmp::Ordering::Equal))
-                {
+                // Show the most recently active session
+                if let Some(session) = sessions.iter().max_by_key(|s| s.last_active) {
                     println!(
                         "Session {}: ${:.2} ({} entries)",
                         &session.session_id[..8.min(session.session_id.len())],

@@ -1,4 +1,4 @@
-use chrono::NaiveDate;
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
 
 #[derive(Debug, Clone)]
@@ -13,6 +13,7 @@ pub struct SessionSummary {
     pub session_id: String,
     pub cost: f64,
     pub entries: usize,
+    pub last_active: DateTime<Utc>,
 }
 
 #[derive(Serialize)]

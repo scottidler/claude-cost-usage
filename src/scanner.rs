@@ -9,7 +9,6 @@ use std::time::SystemTime;
 pub struct SessionFile {
     pub path: PathBuf,
     pub mtime: SystemTime,
-    #[allow(dead_code)]
     pub size: u64,
 }
 
