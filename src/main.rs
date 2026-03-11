@@ -11,6 +11,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 
+mod cache;
 mod cli;
 mod config;
 mod output;
@@ -68,6 +69,22 @@ fn compute_summaries(
     let filtered = scanner::filter_by_date_range(&all_files, start, end);
 
     info!("Processing {} files (of {} total)", filtered.len(), all_files.len());
+
+    // Try cache for single-day, non-verbose, no-filter queries
+    let mtime_hash = cache::compute_mtime_hash(&filtered);
+    if !cli.no_cache
+        && !cli.verbose
+        && cli.model.is_none()
+        && start == end
+        && let Some(cached) = cache::load_cached_day(start, mtime_hash)
+    {
+        let summary = DaySummary {
+            date: start,
+            cost: cached.cost,
+            sessions: cached.sessions,
+        };
+        return Ok((vec![summary], Vec::new()));
+    }
 
     let pricing_table = pricing::default_pricing_table();
 
@@ -127,10 +144,19 @@ fn compute_summaries(
     let day_summaries: Vec<DaySummary> = day_costs
         .into_iter()
         .rev()
-        .map(|(date, (cost, sessions))| DaySummary {
-            date,
-            cost,
-            sessions: sessions.len(),
+        .map(|(date, (cost, sessions))| {
+            let session_count = sessions.len();
+            // Save to cache (skip if --no-cache)
+            if !cli.no_cache
+                && let Err(e) = cache::save_cached_day(date, cost, session_count, mtime_hash)
+            {
+                warn!("Failed to save cache for {}: {}", date, e);
+            }
+            DaySummary {
+                date,
+                cost,
+                sessions: session_count,
+            }
         })
         .collect();
 
@@ -142,6 +168,13 @@ fn compute_summaries(
             entries,
         })
         .collect();
+
+    // Prune old cache entries
+    if !cli.no_cache
+        && let Err(e) = cache::prune_cache(90)
+    {
+        warn!("Failed to prune cache: {}", e);
+    }
 
     Ok((day_summaries, session_summaries))
 }
