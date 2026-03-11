@@ -10,11 +10,15 @@ use std::time::SystemTime;
 
 use crate::scanner::SessionFile;
 
+const CACHE_VERSION: u64 = 2;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CachedDay {
     pub cost: f64,
     pub sessions: usize,
     pub mtime_hash: u64,
+    #[serde(default)]
+    pub version: u64,
 }
 
 /// Compute a hash of file paths, mtimes, and sizes for cache invalidation
@@ -46,7 +50,13 @@ pub fn load_cached_day(date: NaiveDate, mtime_hash: u64) -> Option<CachedDay> {
     let content = fs::read_to_string(&path).ok()?;
     let cached: CachedDay = serde_json::from_str(&content).ok()?;
 
-    if cached.mtime_hash == mtime_hash {
+    if cached.version != CACHE_VERSION {
+        info!(
+            "Cache miss for {} (version mismatch: {} != {})",
+            date, cached.version, CACHE_VERSION
+        );
+        None
+    } else if cached.mtime_hash == mtime_hash {
         info!("Cache hit for {}", date);
         Some(cached)
     } else {
@@ -68,6 +78,7 @@ pub fn save_cached_day(date: NaiveDate, cost: f64, sessions: usize, mtime_hash: 
         cost,
         sessions,
         mtime_hash,
+        version: CACHE_VERSION,
     };
 
     let path = dir.join(format!("{}.json", date));
@@ -242,6 +253,7 @@ mod tests {
             cost: 1.0,
             sessions: 1,
             mtime_hash: 0,
+            version: CACHE_VERSION,
         };
         fs::write(&old_path, serde_json::to_string(&cached).expect("serialize")).expect("write");
         assert!(old_path.exists());

@@ -7,10 +7,30 @@ pub struct ModelPricing {
     pub cache_5m_write_per_mtok: f64,
     pub cache_1h_write_per_mtok: f64,
     pub cache_read_per_mtok: f64,
+    // Long context pricing (>200K input tokens per request)
+    #[serde(default)]
+    pub input_per_mtok_above_200k: Option<f64>,
+    #[serde(default)]
+    pub output_per_mtok_above_200k: Option<f64>,
+    #[serde(default)]
+    pub cache_5m_write_per_mtok_above_200k: Option<f64>,
+    #[serde(default)]
+    pub cache_1h_write_per_mtok_above_200k: Option<f64>,
+    #[serde(default)]
+    pub cache_read_per_mtok_above_200k: Option<f64>,
 }
 
+const LONG_CONTEXT_THRESHOLD: u64 = 200_000;
+
 /// Strip dated model ID suffix (e.g., `claude-opus-4-5-20251101` -> `claude-opus-4-5`)
+/// Also maps bare model names to their latest versioned IDs.
 pub fn normalize_model_id(model_id: &str) -> &str {
+    match model_id {
+        "opus" => return "claude-opus-4-6",
+        "sonnet" => return "claude-sonnet-4-6",
+        "haiku" => return "claude-haiku-4-5",
+        _ => {}
+    }
     if let Some(pos) = model_id.rfind('-') {
         let suffix = &model_id[pos + 1..];
         if suffix.len() == 8 && suffix.chars().all(|c| c.is_ascii_digit()) {
@@ -20,20 +40,86 @@ pub fn normalize_model_id(model_id: &str) -> &str {
     model_id
 }
 
+/// Calculate tiered cost for a token type: standard rate below threshold, premium above.
+fn tiered_cost(tokens: u64, total_input: u64, standard_rate: f64, premium_rate: Option<f64>) -> f64 {
+    let mtok = 1_000_000.0;
+    if tokens == 0 {
+        return 0.0;
+    }
+    match premium_rate {
+        Some(premium) if total_input > LONG_CONTEXT_THRESHOLD => tokens as f64 * premium / mtok,
+        _ => tokens as f64 * standard_rate / mtok,
+    }
+}
+
 /// Calculate cost for a single assistant entry's token usage
 pub fn calculate_cost(pricing: &ModelPricing, usage: &crate::parser::TokenUsage) -> f64 {
-    let mtok = 1_000_000.0;
-    (usage.input_tokens as f64 * pricing.input_per_mtok / mtok)
-        + (usage.output_tokens as f64 * pricing.output_per_mtok / mtok)
-        + (usage.cache_5m_write_tokens as f64 * pricing.cache_5m_write_per_mtok / mtok)
-        + (usage.cache_1h_write_tokens as f64 * pricing.cache_1h_write_per_mtok / mtok)
-        + (usage.cache_read_tokens as f64 * pricing.cache_read_per_mtok / mtok)
+    // Total input context determines whether long context pricing applies.
+    let total_input =
+        usage.input_tokens + usage.cache_5m_write_tokens + usage.cache_1h_write_tokens + usage.cache_read_tokens;
+
+    tiered_cost(
+        usage.input_tokens,
+        total_input,
+        pricing.input_per_mtok,
+        pricing.input_per_mtok_above_200k,
+    ) + tiered_cost(
+        usage.output_tokens,
+        total_input,
+        pricing.output_per_mtok,
+        pricing.output_per_mtok_above_200k,
+    ) + tiered_cost(
+        usage.cache_5m_write_tokens,
+        total_input,
+        pricing.cache_5m_write_per_mtok,
+        pricing.cache_5m_write_per_mtok_above_200k,
+    ) + tiered_cost(
+        usage.cache_1h_write_tokens,
+        total_input,
+        pricing.cache_1h_write_per_mtok,
+        pricing.cache_1h_write_per_mtok_above_200k,
+    ) + tiered_cost(
+        usage.cache_read_tokens,
+        total_input,
+        pricing.cache_read_per_mtok,
+        pricing.cache_read_per_mtok_above_200k,
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::parser::TokenUsage;
+
+    fn standard_pricing() -> ModelPricing {
+        ModelPricing {
+            input_per_mtok: 5.0,
+            output_per_mtok: 25.0,
+            cache_5m_write_per_mtok: 6.25,
+            cache_1h_write_per_mtok: 10.0,
+            cache_read_per_mtok: 0.50,
+            input_per_mtok_above_200k: None,
+            output_per_mtok_above_200k: None,
+            cache_5m_write_per_mtok_above_200k: None,
+            cache_1h_write_per_mtok_above_200k: None,
+            cache_read_per_mtok_above_200k: None,
+        }
+    }
+
+    fn tiered_pricing() -> ModelPricing {
+        ModelPricing {
+            input_per_mtok: 5.0,
+            output_per_mtok: 25.0,
+            cache_5m_write_per_mtok: 6.25,
+            cache_1h_write_per_mtok: 10.0,
+            cache_read_per_mtok: 0.50,
+            input_per_mtok_above_200k: Some(10.0),
+            output_per_mtok_above_200k: Some(37.50),
+            cache_5m_write_per_mtok_above_200k: Some(12.50),
+            cache_1h_write_per_mtok_above_200k: Some(20.0),
+            cache_read_per_mtok_above_200k: Some(1.0),
+        }
+    }
 
     #[test]
     fn test_normalize_model_id_with_date() {
@@ -48,15 +134,15 @@ mod tests {
     }
 
     #[test]
-    fn test_calculate_cost_basic() {
-        let pricing = ModelPricing {
-            input_per_mtok: 5.0,
-            output_per_mtok: 25.0,
-            cache_5m_write_per_mtok: 6.25,
-            cache_1h_write_per_mtok: 10.0,
-            cache_read_per_mtok: 0.50,
-        };
+    fn test_normalize_model_id_bare_names() {
+        assert_eq!(normalize_model_id("opus"), "claude-opus-4-6");
+        assert_eq!(normalize_model_id("sonnet"), "claude-sonnet-4-6");
+        assert_eq!(normalize_model_id("haiku"), "claude-haiku-4-5");
+    }
 
+    #[test]
+    fn test_calculate_cost_basic() {
+        let pricing = standard_pricing();
         let usage = TokenUsage {
             input_tokens: 1_000_000,
             output_tokens: 100_000,
@@ -71,14 +157,7 @@ mod tests {
 
     #[test]
     fn test_calculate_cost_with_cache() {
-        let pricing = ModelPricing {
-            input_per_mtok: 5.0,
-            output_per_mtok: 25.0,
-            cache_5m_write_per_mtok: 6.25,
-            cache_1h_write_per_mtok: 10.0,
-            cache_read_per_mtok: 0.50,
-        };
-
+        let pricing = standard_pricing();
         let usage = TokenUsage {
             input_tokens: 3,
             output_tokens: 2,
@@ -90,5 +169,75 @@ mod tests {
         let cost = calculate_cost(&pricing, &usage);
         assert!(cost > 0.0);
         assert!(cost < 0.1);
+    }
+
+    #[test]
+    fn test_tiered_cost_below_threshold_uses_standard_rate() {
+        let pricing = tiered_pricing();
+        let usage = TokenUsage {
+            input_tokens: 150_000,
+            output_tokens: 10_000,
+            cache_5m_write_tokens: 0,
+            cache_1h_write_tokens: 0,
+            cache_read_tokens: 0,
+        };
+
+        // total_input = 150K, below 200K threshold
+        let cost = calculate_cost(&pricing, &usage);
+        let expected = (150_000.0 * 5.0 / 1_000_000.0) + (10_000.0 * 25.0 / 1_000_000.0);
+        assert!((cost - expected).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_tiered_cost_above_threshold_uses_premium_rate() {
+        let pricing = tiered_pricing();
+        let usage = TokenUsage {
+            input_tokens: 250_000,
+            output_tokens: 10_000,
+            cache_5m_write_tokens: 0,
+            cache_1h_write_tokens: 0,
+            cache_read_tokens: 0,
+        };
+
+        // total_input = 250K, above 200K threshold - premium rates apply
+        let cost = calculate_cost(&pricing, &usage);
+        let expected = (250_000.0 * 10.0 / 1_000_000.0) + (10_000.0 * 37.50 / 1_000_000.0);
+        assert!((cost - expected).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_tiered_cost_no_premium_fields_uses_standard_at_any_count() {
+        let pricing = standard_pricing();
+        let usage = TokenUsage {
+            input_tokens: 500_000,
+            output_tokens: 10_000,
+            cache_5m_write_tokens: 0,
+            cache_1h_write_tokens: 0,
+            cache_read_tokens: 0,
+        };
+
+        // No premium rates defined, so standard rate used even above threshold
+        let cost = calculate_cost(&pricing, &usage);
+        let expected = (500_000.0 * 5.0 / 1_000_000.0) + (10_000.0 * 25.0 / 1_000_000.0);
+        assert!((cost - expected).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_tiered_cost_cache_tokens_count_toward_threshold() {
+        let pricing = tiered_pricing();
+        // input_tokens alone is below 200K, but cache_read pushes total over
+        let usage = TokenUsage {
+            input_tokens: 50_000,
+            output_tokens: 10_000,
+            cache_5m_write_tokens: 0,
+            cache_1h_write_tokens: 0,
+            cache_read_tokens: 200_000,
+        };
+
+        // total_input = 50K + 200K = 250K > 200K, premium rates apply
+        let cost = calculate_cost(&pricing, &usage);
+        let expected =
+            (50_000.0 * 10.0 / 1_000_000.0) + (10_000.0 * 37.50 / 1_000_000.0) + (200_000.0 * 1.0 / 1_000_000.0);
+        assert!((cost - expected).abs() < 0.001);
     }
 }

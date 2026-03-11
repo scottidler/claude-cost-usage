@@ -18,6 +18,11 @@ pricing:
     cache_5m_write_per_mtok: 6.25
     cache_1h_write_per_mtok: 10.0
     cache_read_per_mtok: 0.50
+    input_per_mtok_above_200k: 10.0
+    output_per_mtok_above_200k: 37.50
+    cache_5m_write_per_mtok_above_200k: 12.50
+    cache_1h_write_per_mtok_above_200k: 20.0
+    cache_read_per_mtok_above_200k: 1.0
 
 Rules:
 - Include ALL Claude models listed on the page
@@ -27,6 +32,9 @@ Rules:
   If only a single "cache write" price is listed, use it for cache_5m_write_per_mtok and
   set cache_1h_write_per_mtok to cache_5m_write_per_mtok * 1.6 (the standard ratio)
 - Cache read pricing: use the listed cache read price
+- Long context pricing (>200K input tokens): if the page lists higher rates for extended/long
+  context, include them as the _above_200k fields. If a model has no long context pricing,
+  omit the _above_200k fields entirely.
 - Output ONLY the YAML block, no explanations or markdown fences
 "#;
 
@@ -108,6 +116,17 @@ pub fn show(config: &Config) -> Result<()> {
             p.cache_1h_write_per_mtok,
             p.cache_read_per_mtok
         );
+        if p.input_per_mtok_above_200k.is_some() {
+            println!(
+                "  {:<23} ${:>7.2} ${:>7.2} ${:>9.2} ${:>9.2} ${:>9.2}",
+                "(>200K)",
+                p.input_per_mtok_above_200k.unwrap_or(0.0),
+                p.output_per_mtok_above_200k.unwrap_or(0.0),
+                p.cache_5m_write_per_mtok_above_200k.unwrap_or(0.0),
+                p.cache_1h_write_per_mtok_above_200k.unwrap_or(0.0),
+                p.cache_read_per_mtok_above_200k.unwrap_or(0.0),
+            );
+        }
     }
 
     Ok(())
@@ -258,12 +277,31 @@ fn show_diff(old: &HashMap<String, ModelPricing>, new: &HashMap<String, ModelPri
     eprintln!("{}", "-".repeat(60));
 }
 
+fn opt_eq(a: Option<f64>, b: Option<f64>) -> bool {
+    match (a, b) {
+        (Some(x), Some(y)) => (x - y).abs() < f64::EPSILON,
+        (None, None) => true,
+        _ => false,
+    }
+}
+
 fn pricing_eq(a: &ModelPricing, b: &ModelPricing) -> bool {
     (a.input_per_mtok - b.input_per_mtok).abs() < f64::EPSILON
         && (a.output_per_mtok - b.output_per_mtok).abs() < f64::EPSILON
         && (a.cache_5m_write_per_mtok - b.cache_5m_write_per_mtok).abs() < f64::EPSILON
         && (a.cache_1h_write_per_mtok - b.cache_1h_write_per_mtok).abs() < f64::EPSILON
         && (a.cache_read_per_mtok - b.cache_read_per_mtok).abs() < f64::EPSILON
+        && opt_eq(a.input_per_mtok_above_200k, b.input_per_mtok_above_200k)
+        && opt_eq(a.output_per_mtok_above_200k, b.output_per_mtok_above_200k)
+        && opt_eq(
+            a.cache_5m_write_per_mtok_above_200k,
+            b.cache_5m_write_per_mtok_above_200k,
+        )
+        && opt_eq(
+            a.cache_1h_write_per_mtok_above_200k,
+            b.cache_1h_write_per_mtok_above_200k,
+        )
+        && opt_eq(a.cache_read_per_mtok_above_200k, b.cache_read_per_mtok_above_200k)
 }
 
 fn diff_field(label: &str, old: f64, new: f64) {
@@ -316,18 +354,27 @@ mod tests {
         assert!(validate_pricing(&pricing).is_err());
     }
 
+    fn test_pricing(input: f64, output: f64, c5m: f64, c1h: f64, cr: f64) -> ModelPricing {
+        ModelPricing {
+            input_per_mtok: input,
+            output_per_mtok: output,
+            cache_5m_write_per_mtok: c5m,
+            cache_1h_write_per_mtok: c1h,
+            cache_read_per_mtok: cr,
+            input_per_mtok_above_200k: None,
+            output_per_mtok_above_200k: None,
+            cache_5m_write_per_mtok_above_200k: None,
+            cache_1h_write_per_mtok_above_200k: None,
+            cache_read_per_mtok_above_200k: None,
+        }
+    }
+
     #[test]
     fn test_validate_pricing_negative_value() {
         let mut pricing = HashMap::new();
         pricing.insert(
             "claude-opus-4-6".to_string(),
-            ModelPricing {
-                input_per_mtok: -1.0,
-                output_per_mtok: 25.0,
-                cache_5m_write_per_mtok: 6.25,
-                cache_1h_write_per_mtok: 10.0,
-                cache_read_per_mtok: 0.50,
-            },
+            test_pricing(-1.0, 25.0, 6.25, 10.0, 0.50),
         );
         assert!(validate_pricing(&pricing).is_err());
     }
@@ -335,83 +382,32 @@ mod tests {
     #[test]
     fn test_validate_pricing_valid() {
         let mut pricing = HashMap::new();
-        pricing.insert(
-            "claude-opus-4-6".to_string(),
-            ModelPricing {
-                input_per_mtok: 5.0,
-                output_per_mtok: 25.0,
-                cache_5m_write_per_mtok: 6.25,
-                cache_1h_write_per_mtok: 10.0,
-                cache_read_per_mtok: 0.50,
-            },
-        );
+        pricing.insert("claude-opus-4-6".to_string(), test_pricing(5.0, 25.0, 6.25, 10.0, 0.50));
         pricing.insert(
             "claude-sonnet-4-6".to_string(),
-            ModelPricing {
-                input_per_mtok: 3.0,
-                output_per_mtok: 15.0,
-                cache_5m_write_per_mtok: 3.75,
-                cache_1h_write_per_mtok: 6.0,
-                cache_read_per_mtok: 0.30,
-            },
+            test_pricing(3.0, 15.0, 3.75, 6.0, 0.30),
         );
-        pricing.insert(
-            "claude-haiku-4-5".to_string(),
-            ModelPricing {
-                input_per_mtok: 1.0,
-                output_per_mtok: 5.0,
-                cache_5m_write_per_mtok: 1.25,
-                cache_1h_write_per_mtok: 2.0,
-                cache_read_per_mtok: 0.10,
-            },
-        );
+        pricing.insert("claude-haiku-4-5".to_string(), test_pricing(1.0, 5.0, 1.25, 2.0, 0.10));
         assert!(validate_pricing(&pricing).is_ok());
     }
 
     #[test]
     fn test_validate_pricing_zero_value() {
         let mut pricing = HashMap::new();
-        pricing.insert(
-            "claude-opus-4-6".to_string(),
-            ModelPricing {
-                input_per_mtok: 5.0,
-                output_per_mtok: 0.0,
-                cache_5m_write_per_mtok: 6.25,
-                cache_1h_write_per_mtok: 10.0,
-                cache_read_per_mtok: 0.50,
-            },
-        );
+        pricing.insert("claude-opus-4-6".to_string(), test_pricing(5.0, 0.0, 6.25, 10.0, 0.50));
         assert!(validate_pricing(&pricing).is_err());
     }
 
     #[test]
     fn test_pricing_eq_identical() {
-        let p = ModelPricing {
-            input_per_mtok: 5.0,
-            output_per_mtok: 25.0,
-            cache_5m_write_per_mtok: 6.25,
-            cache_1h_write_per_mtok: 10.0,
-            cache_read_per_mtok: 0.50,
-        };
+        let p = test_pricing(5.0, 25.0, 6.25, 10.0, 0.50);
         assert!(pricing_eq(&p, &p));
     }
 
     #[test]
     fn test_pricing_eq_different() {
-        let a = ModelPricing {
-            input_per_mtok: 5.0,
-            output_per_mtok: 25.0,
-            cache_5m_write_per_mtok: 6.25,
-            cache_1h_write_per_mtok: 10.0,
-            cache_read_per_mtok: 0.50,
-        };
-        let b = ModelPricing {
-            input_per_mtok: 3.0,
-            output_per_mtok: 15.0,
-            cache_5m_write_per_mtok: 3.75,
-            cache_1h_write_per_mtok: 6.0,
-            cache_read_per_mtok: 0.30,
-        };
+        let a = test_pricing(5.0, 25.0, 6.25, 10.0, 0.50);
+        let b = test_pricing(3.0, 15.0, 3.75, 6.0, 0.30);
         assert!(!pricing_eq(&a, &b));
     }
 
