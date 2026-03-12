@@ -17,6 +17,16 @@ session=$(ccu session current --total)
 echo "Claude: M\$$monthly W\$$weekly D\$$today S\$$session"
 ```
 
+### Statusline Setup
+
+`statusline.sh` lives in `~/.claude/` and runs periodically to update your shell prompt. You can:
+
+- Write your own custom `statusline.sh` that calls `ccu` for cost data
+- Use an open-source option like [Owloops/claude-powerline](https://github.com/Owloops/claude-powerline)
+- Have Claude Code itself write a custom statusline for you
+
+`ccu` provides the cost data - `statusline.sh` decides how to display it. The `--total` flag outputs a plain number suitable for embedding in status strings.
+
 ## Installation
 
 ### Quick Install
@@ -72,6 +82,51 @@ ccu today -v
 ccu daily -g
 ccu weekly -g
 ```
+
+## Pricing
+
+`ccu` ships with embedded pricing for all current Claude models, compiled into the binary. No config file or network connection is needed for normal operation.
+
+### Checking for stale pricing
+
+```bash
+# Check if the embedded pricing might be outdated
+ccu pricing --check
+```
+
+Exit codes: `0` = up to date, `1` = pricing page has changed (may be stale), `2` = fetch failed.
+
+### Viewing current pricing
+
+```bash
+ccu pricing --show
+```
+
+### Custom/enterprise rates
+
+Create or edit `~/.config/ccu/ccu.yml` to override specific model prices:
+
+```yaml
+pricing:
+  claude-opus-4-6:
+    input_per_mtok: 4.50
+    output_per_mtok: 22.50
+    cache_5m_write_per_mtok: 5.63
+    cache_1h_write_per_mtok: 9.0
+    cache_read_per_mtok: 0.45
+```
+
+Config pricing overrides are merged on top of the embedded defaults. Models not in your config use the embedded values.
+
+### Updating pricing (developers)
+
+When Anthropic changes their pricing, run:
+
+```bash
+bin/update
+```
+
+This fetches the live pricing page, parses it deterministically, and regenerates `data/pricing.yml`. Review the diff, commit, and cut a release.
 
 ## Version Reporting
 
