@@ -1,0 +1,229 @@
+#!/usr/bin/env bash
+# bin/update - Fetch Anthropic's pricing page and regenerate data/pricing.yml
+#
+# This script fetches the raw markdown pricing page from Anthropic,
+# parses the "Model pricing" and "Long context pricing" tables using awk,
+# and generates data/pricing.yml in the format expected by the Rust structs.
+#
+# Usage:
+#   bin/update          # fetch, parse, generate, show diff
+#   bin/update --dry    # fetch and parse but don't write files
+
+set -euo pipefail
+
+PRICING_URL="https://platform.claude.com/docs/en/about-claude/pricing.md"
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PRICING_FILE="$REPO_ROOT/data/pricing.yml"
+HASH_FILE="$REPO_ROOT/data/pricing-page.sha256"
+
+DRY_RUN=false
+if [[ "${1:-}" == "--dry" ]]; then
+    DRY_RUN=true
+fi
+
+echo "Fetching pricing page from Anthropic..."
+PAGE_CONTENT=$(curl -sS --max-time 30 "$PRICING_URL")
+
+if [[ -z "$PAGE_CONTENT" ]]; then
+    echo "Error: empty response from $PRICING_URL" >&2
+    exit 1
+fi
+
+echo "Parsing model pricing table..."
+
+# Parse the main "Model pricing" table.
+# Table format: | Model | Input ... | Output ... | 5-min cache write ... | 1-hour cache write ... | Cache read ... |
+# We extract rows that start with "| Claude" and parse dollar amounts.
+#
+# We also parse the "Long context pricing" table for >200K rates.
+# Table format: | Model | Input ... | Output ... |
+
+# Use awk to extract both tables and produce a structured intermediate format.
+# Output: model_id base_input base_output cache_5m cache_1h cache_read [long_input long_output]
+PARSED=$(echo "$PAGE_CONTENT" | awk '
+BEGIN {
+    in_model_table = 0
+    in_long_table = 0
+}
+
+# Detect start of model pricing table (header row containing "Input" and "Output" and "Cache")
+/^\| Model/ && /Input/ && /Output/ && /[Cc]ache/ {
+    in_model_table = 1
+    in_long_table = 0
+    next
+}
+
+# Detect start of long context pricing table (header containing "Input" and "Output" but NOT "Cache")
+/^\| Model/ && /Input/ && /Output/ && !/[Cc]ache/ {
+    in_long_table = 1
+    in_model_table = 0
+    next
+}
+
+# Skip separator rows (|---|---|...)
+/^\|[-: |]+\|$/ { next }
+
+# End of table on blank line or non-table line
+/^[^|]/ {
+    in_model_table = 0
+    in_long_table = 0
+}
+
+# Process model pricing table rows
+in_model_table && /^\| *Claude/ {
+    # Split by pipe, extract fields
+    n = split($0, fields, "|")
+
+    # Field 1 is empty (before first pipe)
+    # Field 2 is model name
+    # Fields 3-7 are: input, output, cache_5m_write, cache_1h_write, cache_read
+    model_raw = fields[2]
+
+    # Clean up model name: strip markdown links, whitespace, annotations
+    gsub(/\[([^\]]*)\]\([^)]*\)/, "\\1", model_raw)  # [text](url) -> text
+    gsub(/\*+/, "", model_raw)                          # strip bold/italic
+    gsub(/^ +| +$/, "", model_raw)                     # trim whitespace
+
+    # Normalize model name to ID: "Claude Opus 4.6" -> "claude-opus-4-6"
+    model_id = tolower(model_raw)
+    gsub(/ /, "-", model_id)
+    gsub(/\./, "-", model_id)
+
+    # Extract dollar values (strip $ and commas, take first number)
+    for (i = 3; i <= 7 && i <= n; i++) {
+        val = fields[i]
+        gsub(/[$ ,*]/, "", val)
+        gsub(/^ +| +$/, "", val)
+        # Handle "N/A" or empty
+        if (val == "" || val ~ /[Nn]\/[Aa]/ || val == "-") val = "0"
+        prices[i-3] = val + 0  # force numeric
+    }
+
+    printf "MODEL %s %s %s %s %s %s\n", model_id, prices[0], prices[1], prices[2], prices[3], prices[4]
+}
+
+# Process long context pricing table rows
+in_long_table && /^\| *Claude/ {
+    n = split($0, fields, "|")
+    model_raw = fields[2]
+    gsub(/\[([^\]]*)\]\([^)]*\)/, "\\1", model_raw)
+    gsub(/\*+/, "", model_raw)
+    gsub(/^ +| +$/, "", model_raw)
+    model_id = tolower(model_raw)
+    gsub(/ /, "-", model_id)
+    gsub(/\./, "-", model_id)
+
+    for (i = 3; i <= 4 && i <= n; i++) {
+        val = fields[i]
+        gsub(/[$ ,*]/, "", val)
+        gsub(/^ +| +$/, "", val)
+        if (val == "" || val ~ /[Nn]\/[Aa]/ || val == "-") val = "0"
+        lprices[i-3] = val + 0
+    }
+
+    printf "LONG %s %s %s\n", model_id, lprices[0], lprices[1]
+}
+')
+
+if [[ -z "$PARSED" ]]; then
+    echo "Error: failed to parse any pricing data from the page" >&2
+    echo "The page format may have changed. Check $PRICING_URL manually." >&2
+    exit 1
+fi
+
+echo "Generating data/pricing.yml..."
+
+# Build the YAML output from the parsed data.
+# First pass: collect base pricing for each model.
+# Second pass: merge long context pricing.
+YAML_OUTPUT=$(echo "$PARSED" | awk '
+BEGIN {
+    model_count = 0
+}
+
+# Collect base model pricing
+$1 == "MODEL" {
+    id = $2
+    if (!(id in seen)) {
+        seen[id] = 1
+        models[model_count++] = id
+    }
+    input[id] = $3
+    output[id] = $4
+    cache_5m[id] = $5
+    cache_1h[id] = $6
+    cache_read[id] = $7
+}
+
+# Collect long context pricing
+$1 == "LONG" {
+    id = $2
+    long_input[id] = $3
+    long_output[id] = $4
+}
+
+END {
+    print "pricing:"
+    for (i = 0; i < model_count; i++) {
+        id = models[i]
+        if (i > 0) print ""
+        printf "  %s:\n", id
+        printf "    input_per_mtok: %s\n", input[id]
+        printf "    output_per_mtok: %s\n", output[id]
+        printf "    cache_5m_write_per_mtok: %s\n", cache_5m[id]
+        printf "    cache_1h_write_per_mtok: %s\n", cache_1h[id]
+        printf "    cache_read_per_mtok: %s\n", cache_read[id]
+
+        # Add long context pricing if available
+        if (id in long_input && long_input[id] > 0) {
+            # Derive cache rates for >200K using standard multipliers:
+            #   cache_5m_write = input * 1.25
+            #   cache_1h_write = input * 2.0
+            #   cache_read = input * 0.1
+            li = long_input[id]
+            lo = long_output[id]
+            printf "    input_per_mtok_above_200k: %s\n", li
+            printf "    output_per_mtok_above_200k: %s\n", lo
+            printf "    cache_5m_write_per_mtok_above_200k: %s\n", li * 1.25
+            printf "    cache_1h_write_per_mtok_above_200k: %s\n", li * 2.0
+            printf "    cache_read_per_mtok_above_200k: %s\n", li * 0.1
+        }
+    }
+}
+')
+
+if [[ -z "$YAML_OUTPUT" ]]; then
+    echo "Error: failed to generate YAML output" >&2
+    exit 1
+fi
+
+# Compute SHA-256 of the full page content
+PAGE_HASH=$(echo "$PAGE_CONTENT" | sha256sum | cut -d' ' -f1)
+
+if [[ "$DRY_RUN" == true ]]; then
+    echo ""
+    echo "=== Dry run - would write: ==="
+    echo ""
+    echo "$YAML_OUTPUT"
+    echo ""
+    echo "SHA-256: $PAGE_HASH"
+    exit 0
+fi
+
+# Write files
+echo "$YAML_OUTPUT" > "$PRICING_FILE"
+echo "$PAGE_HASH" > "$HASH_FILE"
+
+echo ""
+echo "Wrote $PRICING_FILE"
+echo "Wrote $HASH_FILE ($PAGE_HASH)"
+echo ""
+
+# Show git diff if in a git repo
+if git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+    echo "=== Changes ==="
+    git -C "$REPO_ROOT" diff data/pricing.yml data/pricing-page.sha256 || true
+fi
+
+echo ""
+echo "Done. Review the changes, then commit and cut a release."
