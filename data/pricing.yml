@@ -1,104 +1,104 @@
 pricing:
   claude-opus-4-6:
-    input_per_mtok: 5.0
-    output_per_mtok: 25.0
+    input_per_mtok: 5
+    output_per_mtok: 25
     cache_5m_write_per_mtok: 6.25
-    cache_1h_write_per_mtok: 10.0
-    cache_read_per_mtok: 0.50
-    input_per_mtok_above_200k: 10.0
-    output_per_mtok_above_200k: 37.50
-    cache_5m_write_per_mtok_above_200k: 12.50
-    cache_1h_write_per_mtok_above_200k: 20.0
-    cache_read_per_mtok_above_200k: 1.0
+    cache_1h_write_per_mtok: 10
+    cache_read_per_mtok: 0.5
+    input_per_mtok_above_200k: 10
+    output_per_mtok_above_200k: 37.5
+    cache_5m_write_per_mtok_above_200k: 12.5
+    cache_1h_write_per_mtok_above_200k: 20
+    cache_read_per_mtok_above_200k: 1
 
   claude-opus-4-5:
-    input_per_mtok: 5.0
-    output_per_mtok: 25.0
+    input_per_mtok: 5
+    output_per_mtok: 25
     cache_5m_write_per_mtok: 6.25
-    cache_1h_write_per_mtok: 10.0
-    cache_read_per_mtok: 0.50
+    cache_1h_write_per_mtok: 10
+    cache_read_per_mtok: 0.5
 
   claude-opus-4-1:
-    input_per_mtok: 15.0
-    output_per_mtok: 75.0
+    input_per_mtok: 15
+    output_per_mtok: 75
     cache_5m_write_per_mtok: 18.75
-    cache_1h_write_per_mtok: 30.0
-    cache_read_per_mtok: 1.50
+    cache_1h_write_per_mtok: 30
+    cache_read_per_mtok: 1.5
 
   claude-opus-4:
-    input_per_mtok: 15.0
-    output_per_mtok: 75.0
+    input_per_mtok: 15
+    output_per_mtok: 75
     cache_5m_write_per_mtok: 18.75
-    cache_1h_write_per_mtok: 30.0
-    cache_read_per_mtok: 1.50
+    cache_1h_write_per_mtok: 30
+    cache_read_per_mtok: 1.5
 
   claude-sonnet-4-6:
-    input_per_mtok: 3.0
-    output_per_mtok: 15.0
+    input_per_mtok: 3
+    output_per_mtok: 15
     cache_5m_write_per_mtok: 3.75
-    cache_1h_write_per_mtok: 6.0
-    cache_read_per_mtok: 0.30
-    input_per_mtok_above_200k: 6.0
-    output_per_mtok_above_200k: 22.50
-    cache_5m_write_per_mtok_above_200k: 7.50
-    cache_1h_write_per_mtok_above_200k: 12.0
-    cache_read_per_mtok_above_200k: 0.60
+    cache_1h_write_per_mtok: 6
+    cache_read_per_mtok: 0.3
+    input_per_mtok_above_200k: 6
+    output_per_mtok_above_200k: 22.5
+    cache_5m_write_per_mtok_above_200k: 7.5
+    cache_1h_write_per_mtok_above_200k: 12
+    cache_read_per_mtok_above_200k: 0.6
 
   claude-sonnet-4-5:
-    input_per_mtok: 3.0
-    output_per_mtok: 15.0
+    input_per_mtok: 3
+    output_per_mtok: 15
     cache_5m_write_per_mtok: 3.75
-    cache_1h_write_per_mtok: 6.0
-    cache_read_per_mtok: 0.30
-    input_per_mtok_above_200k: 6.0
-    output_per_mtok_above_200k: 22.50
-    cache_5m_write_per_mtok_above_200k: 7.50
-    cache_1h_write_per_mtok_above_200k: 12.0
-    cache_read_per_mtok_above_200k: 0.60
+    cache_1h_write_per_mtok: 6
+    cache_read_per_mtok: 0.3
+    input_per_mtok_above_200k: 6
+    output_per_mtok_above_200k: 22.5
+    cache_5m_write_per_mtok_above_200k: 7.5
+    cache_1h_write_per_mtok_above_200k: 12
+    cache_read_per_mtok_above_200k: 0.6
 
   claude-sonnet-4:
-    input_per_mtok: 3.0
-    output_per_mtok: 15.0
+    input_per_mtok: 3
+    output_per_mtok: 15
     cache_5m_write_per_mtok: 3.75
-    cache_1h_write_per_mtok: 6.0
-    cache_read_per_mtok: 0.30
-    input_per_mtok_above_200k: 6.0
-    output_per_mtok_above_200k: 22.50
-    cache_5m_write_per_mtok_above_200k: 7.50
-    cache_1h_write_per_mtok_above_200k: 12.0
-    cache_read_per_mtok_above_200k: 0.60
+    cache_1h_write_per_mtok: 6
+    cache_read_per_mtok: 0.3
+    input_per_mtok_above_200k: 6
+    output_per_mtok_above_200k: 22.5
+    cache_5m_write_per_mtok_above_200k: 7.5
+    cache_1h_write_per_mtok_above_200k: 12
+    cache_read_per_mtok_above_200k: 0.6
 
   claude-sonnet-3-7:
-    input_per_mtok: 3.0
-    output_per_mtok: 15.0
+    input_per_mtok: 3
+    output_per_mtok: 15
     cache_5m_write_per_mtok: 3.75
-    cache_1h_write_per_mtok: 6.0
-    cache_read_per_mtok: 0.30
+    cache_1h_write_per_mtok: 6
+    cache_read_per_mtok: 0.3
 
   claude-haiku-4-5:
-    input_per_mtok: 1.0
-    output_per_mtok: 5.0
+    input_per_mtok: 1
+    output_per_mtok: 5
     cache_5m_write_per_mtok: 1.25
-    cache_1h_write_per_mtok: 2.0
-    cache_read_per_mtok: 0.10
+    cache_1h_write_per_mtok: 2
+    cache_read_per_mtok: 0.1
 
   claude-haiku-3-5:
-    input_per_mtok: 0.80
-    output_per_mtok: 4.0
-    cache_5m_write_per_mtok: 1.0
+    input_per_mtok: 0.8
+    output_per_mtok: 4
+    cache_5m_write_per_mtok: 1
     cache_1h_write_per_mtok: 1.6
     cache_read_per_mtok: 0.08
 
   claude-opus-3:
-    input_per_mtok: 15.0
-    output_per_mtok: 75.0
+    input_per_mtok: 15
+    output_per_mtok: 75
     cache_5m_write_per_mtok: 18.75
-    cache_1h_write_per_mtok: 30.0
-    cache_read_per_mtok: 1.50
+    cache_1h_write_per_mtok: 30
+    cache_read_per_mtok: 1.5
 
   claude-haiku-3:
     input_per_mtok: 0.25
     output_per_mtok: 1.25
-    cache_5m_write_per_mtok: 0.30
-    cache_1h_write_per_mtok: 0.50
+    cache_5m_write_per_mtok: 0.3
+    cache_1h_write_per_mtok: 0.5
     cache_read_per_mtok: 0.03
