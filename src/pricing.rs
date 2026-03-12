@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Return embedded default pricing compiled into the binary.
 pub fn default_pricing() -> HashMap<String, ModelPricing> {
-    let yaml = include_str!("../data/default-pricing.yml");
+    let yaml = include_str!("../data/pricing.yml");
     let parsed: crate::update::PricingOnly = serde_yaml::from_str(yaml).expect("embedded pricing YAML is valid");
     parsed.pricing
 }
