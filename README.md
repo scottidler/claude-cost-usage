@@ -1,31 +1,75 @@
 # claude-cost-usage
-Rust CLI for reading Claude Code JSONL session files and computing daily/weekly cost summaries.
+
+Fast Rust CLI that reads Claude Code's JSONL session logs and computes cost summaries - today, daily, weekly, monthly. Designed for embedding in statuslines, scripts, and automation.
 
 ## Statusline Integration
 
-Power your shell statusline with live Claude spend data. The example below shows `statusline.sh` using `ccu` to display Monthly, Weekly, Today, and Session costs:
+`ccu` pairs with Claude Code's built-in [statusline.sh](https://docs.anthropic.com/en/docs/claude-code/statusline) hook to give you live spend data in your terminal. The `--total` flag outputs a plain dollar amount (e.g. `14.23`), designed for embedding in status bars.
 
 ![statusline example](assets/statusline.png)
 
-```bash
-# Example statusline.sh snippet
-monthly=$(ccu monthly --total -m 1)
-weekly=$(ccu weekly --total -w 1)
-today=$(ccu today --total)
-session=$(ccu session current --total)
+### What is statusline.sh?
 
-echo "Claude: M\$$monthly W\$$weekly D\$$today S\$$session"
+Claude Code runs `~/.claude/statusline.sh` and displays its output in your terminal status bar. **The script is entirely yours to customize** - you control the format, data, and styling. Claude Code also pipes a JSON payload to stdin with session metadata (model, context usage, duration, lines changed, etc.) that you can parse with `jq`.
+
+### Minimal Example
+
+```bash
+#!/bin/bash
+# ~/.claude/statusline.sh
+
+monthly=$(timeout 1s ccu monthly --total -m 1 2>/dev/null || echo "?")
+weekly=$(timeout 1s ccu weekly --total -w 1 2>/dev/null || echo "?")
+today=$(timeout 1s ccu today --total 2>/dev/null || echo "?")
+session=$(timeout 1s ccu session current --total 2>/dev/null || echo "?")
+
+echo "M\$$monthly W\$$weekly D\$$today S\$$session"
 ```
 
-### Statusline Setup
+### Richer Example - Combining ccu with Claude Code's JSON Data
 
-`statusline.sh` lives in `~/.claude/` and runs periodically to update your shell prompt. You can:
+Claude Code pipes JSON to your script's stdin. Parse it with `jq` and combine with `ccu` for a fuller picture:
 
-- Write your own custom `statusline.sh` that calls `ccu` for cost data
-- Use an open-source option like [Owloops/claude-powerline](https://github.com/Owloops/claude-powerline)
-- Have Claude Code itself write a custom statusline for you
+```bash
+#!/bin/bash
+# ~/.claude/statusline.sh
+set -euo pipefail
 
-`ccu` provides the cost data - `statusline.sh` decides how to display it. The `--total` flag outputs a plain number suitable for embedding in status strings.
+DATA=$(cat)
+
+# Parse fields from Claude Code's JSON payload
+MODEL=$(echo "$DATA" | jq -r '.model.display_name // .model.id // "?"')
+USED_PCT=$(echo "$DATA" | jq -r '.context_window.used_percentage // ""')
+DURATION_MS=$(echo "$DATA" | jq -r '.cost.total_duration_ms // 0')
+LINES_ADDED=$(echo "$DATA" | jq -r '.cost.total_lines_added // 0')
+LINES_REMOVED=$(echo "$DATA" | jq -r '.cost.total_lines_removed // 0')
+
+# Cost summaries from ccu
+TODAY_COST=$(timeout 1s ccu today --total 2>/dev/null || echo 0)
+WEEK_COST=$(timeout 1s ccu weekly --total -w 1 2>/dev/null || echo 0)
+MONTH_COST=$(timeout 1s ccu monthly --total -m 1 2>/dev/null || echo 0)
+SESSION_COST=$(echo "$DATA" | jq -r '.cost.total_cost_usd // 0')
+
+# Format duration
+DS=$((DURATION_MS / 1000)); DM=$((DS / 60)); DH=$((DM / 60)); DM=$((DM % 60))
+[ "$DH" -gt 0 ] && DUR="${DH}h${DM}m" || DUR="${DM}m"
+
+# Context window
+[ -n "$USED_PCT" ] && [ "$USED_PCT" != "null" ] && CTX="${USED_PCT}%" || CTX="..."
+
+echo "$MODEL | ctx:$CTX | M\$$MONTH_COST W\$$WEEK_COST D\$$TODAY_COST S\$$SESSION_COST | ${DUR} | +${LINES_ADDED}/-${LINES_REMOVED}"
+```
+
+### Full Powerline-Style Statusline
+
+For a polished statusline with ANSI colors, powerline arrows, git branch, color-coded context usage, and theme support, see:
+
+- [scottidler/claude - statusline.sh](https://github.com/scottidler/claude/blob/main/statusline.sh)
+
+### Other Options
+
+- [Owloops/claude-powerline](https://github.com/Owloops/claude-powerline) - a third-party powerline statusline
+- Ask Claude Code to write a custom statusline for you - it understands the JSON payload and can generate one to your spec
 
 ## Installation
 
@@ -53,7 +97,7 @@ cargo install --git https://github.com/scottidler/claude-cost-usage
 ## Usage
 
 ```bash
-# Today's cost
+# Today's cost (default)
 ccu
 
 # Yesterday's cost
@@ -82,6 +126,10 @@ ccu today -v
 ccu daily -g
 ccu weekly -g
 ```
+
+## How It Works
+
+`ccu` reads Claude Code's native JSONL session files under `~/.claude/projects/`. No API keys, no config, no network access needed for normal operation. It uses parallel processing (rayon) to stay fast even with months of session history.
 
 ## Pricing
 
