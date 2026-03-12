@@ -1,4 +1,3 @@
-// Simple pattern for git describe -> version
 use std::process::Command;
 
 fn main() {
@@ -17,7 +16,17 @@ fn main() {
             env!("CARGO_PKG_VERSION").to_string()
         });
 
+    // Embed the pricing page SHA-256 hash for staleness detection.
+    // If the file is missing or empty, use an empty string (--check will warn).
+    let pricing_hash = std::fs::read_to_string("data/pricing-page.sha256")
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+
     println!("cargo:rustc-env=GIT_DESCRIBE={}", git_describe);
+    println!("cargo:rustc-env=PRICING_PAGE_SHA256={}", pricing_hash);
     println!("cargo:rerun-if-changed=.git/HEAD");
     println!("cargo:rerun-if-changed=.git/refs/");
+    println!("cargo:rerun-if-changed=data/pricing.yml");
+    println!("cargo:rerun-if-changed=data/pricing-page.sha256");
 }

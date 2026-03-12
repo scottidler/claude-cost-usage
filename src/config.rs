@@ -48,10 +48,9 @@ impl Config {
             }
         }
 
-        eyre::bail!(
-            "No config file found. Run `ccu pricing --update` to generate one.\n\
-             Config location: ~/.config/ccu/ccu.yml"
-        )
+        // No config file found - return empty config; caller merges embedded pricing
+        log::info!("No config file found, using embedded pricing defaults");
+        Ok(Config::default())
     }
 
     fn load_from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
@@ -92,5 +91,13 @@ mod tests {
     fn test_load_explicit_path_missing() {
         let result = Config::load(Some(&PathBuf::from("/nonexistent/path/ccu.yml")));
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_no_config_does_not_error() {
+        // Config::load(None) should never error, even if no config file exists.
+        // It returns either the loaded config or a default with empty pricing.
+        let result = Config::load(None);
+        assert!(result.is_ok(), "Config::load(None) should not error");
     }
 }

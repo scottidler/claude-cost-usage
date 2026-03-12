@@ -32,21 +32,43 @@ pub struct ModelPricing {
 const LONG_CONTEXT_THRESHOLD: u64 = 200_000;
 
 /// Strip dated model ID suffix (e.g., `claude-opus-4-5-20251101` -> `claude-opus-4-5`)
-/// Also maps bare model names to their latest versioned IDs.
+/// Also maps bare model names to their latest versioned IDs and handles
+/// Anthropic's older naming convention (e.g., `claude-3-7-sonnet` -> `claude-sonnet-3-7`).
 pub fn normalize_model_id(model_id: &str) -> &str {
+    // Bare names -> latest version
     match model_id {
         "opus" => return "claude-opus-4-6",
         "sonnet" => return "claude-sonnet-4-6",
         "haiku" => return "claude-haiku-4-5",
         _ => {}
     }
-    if let Some(pos) = model_id.rfind('-') {
+
+    // Strip date suffix first (e.g., claude-3-7-sonnet-20250219 -> claude-3-7-sonnet)
+    let base = if let Some(pos) = model_id.rfind('-') {
         let suffix = &model_id[pos + 1..];
         if suffix.len() == 8 && suffix.chars().all(|c| c.is_ascii_digit()) {
-            return &model_id[..pos];
+            &model_id[..pos]
+        } else {
+            model_id
         }
+    } else {
+        model_id
+    };
+
+    // Map older naming convention to current convention
+    // claude-3-7-sonnet -> claude-sonnet-3-7
+    // claude-3-5-haiku -> claude-haiku-3-5
+    // claude-3-5-sonnet -> claude-sonnet-3-5
+    // claude-3-opus -> claude-opus-3
+    // claude-3-haiku -> claude-haiku-3
+    match base {
+        s if s.starts_with("claude-3-7-sonnet") => "claude-sonnet-3-7",
+        s if s.starts_with("claude-3-5-haiku") => "claude-haiku-3-5",
+        s if s.starts_with("claude-3-5-sonnet") => "claude-sonnet-3-5",
+        s if s.starts_with("claude-3-opus") => "claude-opus-3",
+        s if s.starts_with("claude-3-haiku") => "claude-haiku-3",
+        _ => base,
     }
-    model_id
 }
 
 /// Calculate tiered cost for a token type: standard rate below threshold, premium above.
@@ -134,10 +156,19 @@ mod tests {
     fn test_default_pricing_is_valid() {
         let pricing = default_pricing();
         assert!(!pricing.is_empty(), "embedded pricing must not be empty");
+        assert!(
+            pricing.len() >= 12,
+            "expected at least 12 models, got {}",
+            pricing.len()
+        );
         // All three model families must be present
-        assert!(pricing.contains_key("claude-opus-4-6"), "missing opus");
-        assert!(pricing.contains_key("claude-sonnet-4-6"), "missing sonnet");
-        assert!(pricing.contains_key("claude-haiku-4-5"), "missing haiku");
+        assert!(pricing.contains_key("claude-opus-4-6"), "missing opus 4.6");
+        assert!(pricing.contains_key("claude-sonnet-4-6"), "missing sonnet 4.6");
+        assert!(pricing.contains_key("claude-haiku-4-5"), "missing haiku 4.5");
+        // Older models must be present too
+        assert!(pricing.contains_key("claude-opus-3"), "missing opus 3");
+        assert!(pricing.contains_key("claude-haiku-3"), "missing haiku 3");
+        assert!(pricing.contains_key("claude-sonnet-3-7"), "missing sonnet 3.7");
         // All values must be positive
         for (model, p) in &pricing {
             assert!(p.input_per_mtok > 0.0, "{model} input_per_mtok <= 0");
@@ -165,6 +196,23 @@ mod tests {
         assert_eq!(normalize_model_id("opus"), "claude-opus-4-6");
         assert_eq!(normalize_model_id("sonnet"), "claude-sonnet-4-6");
         assert_eq!(normalize_model_id("haiku"), "claude-haiku-4-5");
+    }
+
+    #[test]
+    fn test_normalize_model_id_older_naming() {
+        assert_eq!(normalize_model_id("claude-3-7-sonnet-20250219"), "claude-sonnet-3-7");
+        assert_eq!(normalize_model_id("claude-3-5-haiku-20241022"), "claude-haiku-3-5");
+        assert_eq!(normalize_model_id("claude-3-5-sonnet-20241022"), "claude-sonnet-3-5");
+        assert_eq!(normalize_model_id("claude-3-opus-20240229"), "claude-opus-3");
+        assert_eq!(normalize_model_id("claude-3-haiku-20240307"), "claude-haiku-3");
+    }
+
+    #[test]
+    fn test_normalize_model_id_older_naming_without_date() {
+        assert_eq!(normalize_model_id("claude-3-7-sonnet"), "claude-sonnet-3-7");
+        assert_eq!(normalize_model_id("claude-3-5-haiku"), "claude-haiku-3-5");
+        assert_eq!(normalize_model_id("claude-3-opus"), "claude-opus-3");
+        assert_eq!(normalize_model_id("claude-3-haiku"), "claude-haiku-3");
     }
 
     #[test]

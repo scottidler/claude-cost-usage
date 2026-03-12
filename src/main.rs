@@ -520,60 +520,26 @@ fn main() -> Result<()> {
     let filter = resolve_log_filter(cli.log_level.as_deref());
     setup_logging(&filter).context("Failed to setup logging")?;
 
-    // Phase 1: handle commands that don't need config
-    if let Some(Command::Pricing { update, from, .. }) = &cli.command
-        && (*update || from.is_some())
-    {
-        return update::run(from.as_ref());
+    // Handle pricing --check (no config needed, just network + hash comparison)
+    if let Some(Command::Pricing { check: true, .. }) = &cli.command {
+        let exit_code = update::check()?;
+        std::process::exit(exit_code);
     }
 
-    // Phase 2: all other commands require config
-    let config = match Config::load(cli.config.as_ref()) {
-        Ok(config) => config,
-        Err(e) => {
-            // If user explicitly specified a config path, always error
-            if cli.config.is_some() {
-                return Err(e.wrap_err("Failed to load configuration"));
-            }
+    // Load config: embedded pricing as base, config file as override
+    let mut config = Config::load(cli.config.as_ref()).context("Failed to load configuration")?;
 
-            // If the default config file exists but failed to parse, that's a real error
-            let default_path = update::config_path()?;
-            if default_path.exists() {
-                return Err(e.wrap_err("Failed to load configuration"));
-            }
-
-            // No config file - try fetching live pricing first, fall back to embedded defaults
-            eprintln!("No config file found. Attempting to fetch latest pricing...");
-            match update::run(None) {
-                Ok(()) => {
-                    // Fetch succeeded - load the freshly written config
-                    Config::load(cli.config.as_ref()).context("Failed to load configuration after pricing fetch")?
-                }
-                Err(fetch_err) => {
-                    // Fetch failed - fall back to embedded defaults
-                    eprintln!("Failed to fetch pricing: {}. Using built-in defaults.", fetch_err);
-                    let defaults = pricing::default_pricing();
-                    let config = Config {
-                        pricing: defaults,
-                        ..Config::default()
-                    };
-                    if let Some(parent) = default_path.parent() {
-                        fs::create_dir_all(parent).context("Failed to create config directory")?;
-                    }
-                    let yaml = serde_yaml::to_string(&config).context("Failed to serialize default config")?;
-                    fs::write(&default_path, &yaml)
-                        .with_context(|| format!("Failed to write config to {}", default_path.display()))?;
-                    eprintln!("Wrote built-in defaults to: {}", default_path.display());
-                    eprintln!("Run `ccu pricing --update` to refresh when connectivity is available.");
-                    config
-                }
-            }
-        }
-    };
+    // Merge: embedded pricing is the base layer, config file pricing overrides
+    let embedded = pricing::default_pricing();
+    let mut effective = embedded;
+    for (model, model_pricing) in config.pricing.drain() {
+        effective.insert(model, model_pricing);
+    }
+    config.pricing = effective;
 
     info!("Config loaded, {} models in pricing table", config.pricing.len());
 
-    // Pricing --show needs config, handled here
+    // Pricing --show displays effective pricing (embedded + config overrides)
     if let Some(Command::Pricing { .. }) = &cli.command {
         return update::show(&config);
     }
