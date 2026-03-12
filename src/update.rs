@@ -7,6 +7,9 @@ use crate::config::Config;
 use crate::pricing::ModelPricing;
 use crate::table;
 
+// NOTE: This URL is intentionally duplicated in bin/update (bash script).
+// bin/update is a dev-time bash script; this module is the compiled binary's --check.
+// Sharing across bash/Rust is not worth the complexity for a single URL.
 const PRICING_URL: &str = "https://platform.claude.com/docs/en/about-claude/pricing.md";
 
 /// Display current pricing table
