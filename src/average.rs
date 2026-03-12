@@ -165,14 +165,20 @@ mod tests {
 
     #[test]
     fn test_effective_weeks_no_current() {
-        let weeks = vec![("2020-W01".to_string(), 100.0, 10), ("2020-W02".to_string(), 200.0, 20)];
+        let weeks = vec![
+            ("2020-W01".to_string(), 100.0, 10),
+            ("2020-W02".to_string(), 200.0, 20),
+        ];
         let eff = effective_weeks(&weeks);
         assert!((eff - 2.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn test_effective_months_no_current() {
-        let months = vec![("2020-01".to_string(), 100.0, 10), ("2020-02".to_string(), 200.0, 20)];
+        let months = vec![
+            ("2020-01".to_string(), 100.0, 10),
+            ("2020-02".to_string(), 200.0, 20),
+        ];
         let eff = effective_months(&months);
         assert!((eff - 2.0).abs() < f64::EPSILON);
     }
@@ -181,7 +187,10 @@ mod tests {
     fn test_format_average_text() {
         assert_eq!(format_average_text("day", 14.60), "Average: $14.60/day");
         assert_eq!(format_average_text("week", 100.0), "Average: $100.00/week");
-        assert_eq!(format_average_text("month", 250.50), "Average: $250.50/month");
+        assert_eq!(
+            format_average_text("month", 250.50),
+            "Average: $250.50/month"
+        );
     }
 
     #[test]

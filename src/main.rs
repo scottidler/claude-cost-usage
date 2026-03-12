@@ -70,7 +70,11 @@ fn setup_logging(filter: &str) -> Result<()> {
         .target(env_logger::Target::Pipe(target))
         .init();
 
-    info!("Logging initialized, filter={}, file={}", filter, log_file.display());
+    info!(
+        "Logging initialized, filter={}, file={}",
+        filter,
+        log_file.display()
+    );
     Ok(())
 }
 
@@ -99,7 +103,11 @@ fn compute_summaries(
     let all_files = scanner::find_session_files(&projects_dir)?;
     let filtered = scanner::filter_by_date_range(&all_files, start, end);
 
-    info!("Processing {} files (of {} total)", filtered.len(), all_files.len());
+    info!(
+        "Processing {} files (of {} total)",
+        filtered.len(),
+        all_files.len()
+    );
 
     // Try cache for single-day, non-verbose, no-filter queries
     let mtime_hash = cache::compute_mtime_hash(&filtered);
@@ -133,7 +141,8 @@ fn compute_summaries(
 
     // Group by day and session, compute costs
     let mut day_costs: BTreeMap<NaiveDate, (f64, HashSet<String>)> = BTreeMap::new();
-    let mut session_costs: BTreeMap<String, (f64, usize, chrono::DateTime<chrono::Utc>)> = BTreeMap::new();
+    let mut session_costs: BTreeMap<String, (f64, usize, chrono::DateTime<chrono::Utc>)> =
+        BTreeMap::new();
 
     let mut warned_models: HashSet<String> = HashSet::new();
 
@@ -161,7 +170,10 @@ fn compute_summaries(
             Some(p) => p,
             None => {
                 if warned_models.insert(normalized.to_string()) {
-                    warn!("Unknown model: {} (normalized: {})", entry.model, normalized);
+                    warn!(
+                        "Unknown model: {} (normalized: {})",
+                        entry.model, normalized
+                    );
                 }
                 continue;
             }
@@ -169,13 +181,16 @@ fn compute_summaries(
 
         let cost = pricing::calculate_cost(model_pricing, &entry.usage);
 
-        let day_entry = day_costs.entry(date).or_insert_with(|| (0.0, HashSet::new()));
+        let day_entry = day_costs
+            .entry(date)
+            .or_insert_with(|| (0.0, HashSet::new()));
         day_entry.0 += cost;
         day_entry.1.insert(entry.session_id.clone());
 
-        let session_entry = session_costs
-            .entry(entry.session_id.clone())
-            .or_insert((0.0, 0, entry.timestamp));
+        let session_entry =
+            session_costs
+                .entry(entry.session_id.clone())
+                .or_insert((0.0, 0, entry.timestamp));
         session_entry.0 += cost;
         session_entry.1 += 1;
         if entry.timestamp > session_entry.2 {
@@ -204,12 +219,14 @@ fn compute_summaries(
 
     let session_summaries: Vec<SessionSummary> = session_costs
         .into_iter()
-        .map(|(session_id, (cost, entries, last_active))| SessionSummary {
-            session_id,
-            cost,
-            entries,
-            last_active,
-        })
+        .map(
+            |(session_id, (cost, entries, last_active))| SessionSummary {
+                session_id,
+                cost,
+                entries,
+                last_active,
+            },
+        )
         .collect();
 
     // Prune old cache entries
@@ -230,14 +247,21 @@ fn subtract_months(date: NaiveDate, n: u32) -> NaiveDate {
 }
 
 fn run(cli: &Cli, config: &Config) -> Result<()> {
-    debug!("run: command={:?}", cli.command.as_ref().map(std::mem::discriminant));
+    debug!(
+        "run: command={:?}",
+        cli.command.as_ref().map(std::mem::discriminant)
+    );
 
     let today = Local::now().date_naive();
 
     match &cli.command {
         None | Some(Command::Today { .. }) => {
             let (json, total, verbose) = match &cli.command {
-                Some(Command::Today { json, total, verbose }) => (*json, *total, *verbose),
+                Some(Command::Today {
+                    json,
+                    total,
+                    verbose,
+                }) => (*json, *total, *verbose),
                 _ => (false, false, false),
             };
             let (days, sessions) = compute_summaries(cli, config, today, today, verbose)?;
@@ -254,14 +278,19 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
             } else {
                 println!("{}", output::format_today_text(&summary));
                 if verbose {
-                    let today_sessions: Vec<_> = sessions.into_iter().filter(|s| s.cost > 0.0).collect();
+                    let today_sessions: Vec<_> =
+                        sessions.into_iter().filter(|s| s.cost > 0.0).collect();
                     if !today_sessions.is_empty() {
                         println!("{}", output::format_verbose_sessions(&today_sessions));
                     }
                 }
             }
         }
-        Some(Command::Yesterday { json, total, verbose }) => {
+        Some(Command::Yesterday {
+            json,
+            total,
+            verbose,
+        }) => {
             let yesterday = today - chrono::Duration::days(1);
             let (days, sessions) = compute_summaries(cli, config, yesterday, yesterday, *verbose)?;
             let summary = days.first().cloned().unwrap_or(DaySummary {
@@ -277,7 +306,8 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
             } else {
                 println!("{}", output::format_yesterday_text(&summary));
                 if *verbose {
-                    let yesterday_sessions: Vec<_> = sessions.into_iter().filter(|s| s.cost > 0.0).collect();
+                    let yesterday_sessions: Vec<_> =
+                        sessions.into_iter().filter(|s| s.cost > 0.0).collect();
                     if !yesterday_sessions.is_empty() {
                         println!("{}", output::format_verbose_sessions(&yesterday_sessions));
                     }
@@ -301,7 +331,11 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
                 let avg = if *show_avg {
                     let sum: f64 = days.iter().map(|d| d.cost).sum();
                     let eff = average::effective_days(&days);
-                    if eff >= 0.01 { Some((sum / eff, eff)) } else { Some((0.0, eff)) }
+                    if eff >= 0.01 {
+                        Some((sum / eff, eff))
+                    } else {
+                        Some((0.0, eff))
+                    }
                 } else {
                     None
                 };
@@ -334,7 +368,8 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
             graph: show_graph,
         }) => {
             // Monday of the current ISO week
-            let current_monday = today - chrono::Duration::days(today.weekday().num_days_from_monday() as i64);
+            let current_monday =
+                today - chrono::Duration::days(today.weekday().num_days_from_monday() as i64);
             // Go back (num_weeks - 1) more weeks
             let start = current_monday - chrono::Duration::weeks(i64::from(*num_weeks) - 1);
             let (days, ..) = compute_summaries(cli, config, start, today, false)?;
@@ -342,8 +377,14 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
             // Group by ISO week
             let mut weeks: BTreeMap<String, (f64, HashSet<String>)> = BTreeMap::new();
             for day in &days {
-                let week_key = format!("{}-W{:02}", day.date.iso_week().year(), day.date.iso_week().week());
-                let entry = weeks.entry(week_key).or_insert_with(|| (0.0, HashSet::new()));
+                let week_key = format!(
+                    "{}-W{:02}",
+                    day.date.iso_week().year(),
+                    day.date.iso_week().week()
+                );
+                let entry = weeks
+                    .entry(week_key)
+                    .or_insert_with(|| (0.0, HashSet::new()));
                 entry.0 += day.cost;
                 for i in 0..day.sessions {
                     entry.1.insert(format!("{}_{}", day.date, i));
@@ -363,7 +404,11 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
                 let avg = if *show_avg {
                     let sum: f64 = week_list.iter().map(|(_, cost, _)| cost).sum();
                     let eff = average::effective_weeks(&week_list);
-                    if eff >= 0.01 { Some((sum / eff, eff)) } else { Some((0.0, eff)) }
+                    if eff >= 0.01 {
+                        Some((sum / eff, eff))
+                    } else {
+                        Some((0.0, eff))
+                    }
                 } else {
                     None
                 };
@@ -395,7 +440,8 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
             average: show_avg,
             graph: show_graph,
         }) => {
-            let current_month_start = NaiveDate::from_ymd_opt(today.year(), today.month(), 1).expect("valid date");
+            let current_month_start =
+                NaiveDate::from_ymd_opt(today.year(), today.month(), 1).expect("valid date");
             let start = subtract_months(current_month_start, *num_months - 1);
             let (days, ..) = compute_summaries(cli, config, start, today, false)?;
 
@@ -403,7 +449,9 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
             let mut months: BTreeMap<String, (f64, HashSet<String>)> = BTreeMap::new();
             for day in &days {
                 let month_key = format!("{}-{:02}", day.date.year(), day.date.month());
-                let entry = months.entry(month_key).or_insert_with(|| (0.0, HashSet::new()));
+                let entry = months
+                    .entry(month_key)
+                    .or_insert_with(|| (0.0, HashSet::new()));
                 entry.0 += day.cost;
                 for i in 0..day.sessions {
                     entry.1.insert(format!("{}_{}", day.date, i));
@@ -423,7 +471,11 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
                 let avg = if *show_avg {
                     let sum: f64 = month_list.iter().map(|(_, cost, _)| cost).sum();
                     let eff = average::effective_months(&month_list);
-                    if eff >= 0.01 { Some((sum / eff, eff)) } else { Some((0.0, eff)) }
+                    if eff >= 0.01 {
+                        Some((sum / eff, eff))
+                    } else {
+                        Some((0.0, eff))
+                    }
                 } else {
                     None
                 };
@@ -509,10 +561,16 @@ fn run(cli: &Cli, config: &Config) -> Result<()> {
 fn main() -> Result<()> {
     let log_path = log_file_path();
     let display = dirs::home_dir()
-        .and_then(|h| log_path.strip_prefix(&h).ok().map(|p| format!("~/{}", p.display())))
+        .and_then(|h| {
+            log_path
+                .strip_prefix(&h)
+                .ok()
+                .map(|p| format!("~/{}", p.display()))
+        })
         .unwrap_or_else(|| log_path.display().to_string());
-    let after_help =
-        format!("Parses Claude Code JSONL session logs to compute cost summaries.\n\nLogs are written to: {display}");
+    let after_help = format!(
+        "Parses Claude Code JSONL session logs to compute cost summaries.\n\nLogs are written to: {display}"
+    );
     let matches = Cli::command().after_help(after_help).get_matches();
     let cli = Cli::from_arg_matches(&matches)?;
 
@@ -537,7 +595,10 @@ fn main() -> Result<()> {
     }
     config.pricing = effective;
 
-    info!("Config loaded, {} models in pricing table", config.pricing.len());
+    info!(
+        "Config loaded, {} models in pricing table",
+        config.pricing.len()
+    );
 
     // Pricing --show displays effective pricing (embedded + config overrides)
     if let Some(Command::Pricing { .. }) = &cli.command {
@@ -557,21 +618,30 @@ mod tests {
     fn test_subtract_months_same_year() {
         let date = NaiveDate::from_ymd_opt(2026, 6, 1).expect("valid date");
         let result = subtract_months(date, 3);
-        assert_eq!(result, NaiveDate::from_ymd_opt(2026, 3, 1).expect("valid date"));
+        assert_eq!(
+            result,
+            NaiveDate::from_ymd_opt(2026, 3, 1).expect("valid date")
+        );
     }
 
     #[test]
     fn test_subtract_months_cross_year() {
         let date = NaiveDate::from_ymd_opt(2026, 3, 1).expect("valid date");
         let result = subtract_months(date, 5);
-        assert_eq!(result, NaiveDate::from_ymd_opt(2025, 10, 1).expect("valid date"));
+        assert_eq!(
+            result,
+            NaiveDate::from_ymd_opt(2025, 10, 1).expect("valid date")
+        );
     }
 
     #[test]
     fn test_subtract_months_january_edge() {
         let date = NaiveDate::from_ymd_opt(2026, 1, 1).expect("valid date");
         let result = subtract_months(date, 1);
-        assert_eq!(result, NaiveDate::from_ymd_opt(2025, 12, 1).expect("valid date"));
+        assert_eq!(
+            result,
+            NaiveDate::from_ymd_opt(2025, 12, 1).expect("valid date")
+        );
     }
 
     #[test]
@@ -585,7 +655,10 @@ mod tests {
     fn test_subtract_months_twelve() {
         let date = NaiveDate::from_ymd_opt(2026, 3, 1).expect("valid date");
         let result = subtract_months(date, 12);
-        assert_eq!(result, NaiveDate::from_ymd_opt(2025, 3, 1).expect("valid date"));
+        assert_eq!(
+            result,
+            NaiveDate::from_ymd_opt(2025, 3, 1).expect("valid date")
+        );
     }
 
     #[test]
